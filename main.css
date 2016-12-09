@@ -4,6 +4,18 @@
 body,html{margin:0;padding:0;}
 body{background: #3C3C3C;}
 
+.player {position: fixed;z-index: 100000;background: black;overflow: hidden;top: 0;left: 0;right: 0;}
+.player div { float: left; display: inline-block; margin: 5px 20px 15px; }
+.player div#title a{margin-top: 10px;color: #B0B0B0;text-transform: uppercase;display: block;text-decoration: none;}
+.player .control {    margin: 10px 0 0 20px;}
+.player .control i {cursor: pointer;border: none;font-size: 25px;width: 30px;height: 30px;color: white;}
+.player .control i.active {color:#1BA9A9;}
+.player .control i#play {}
+.player .control i#pause {}
+.player .control i#skip {}
+.player .moods {}
+.player .moods .control {}
+.player .moods .control p { color: #3C3C3C; margin: 0; }
 header {}
 header h1 {text-transform: uppercase;color: white;font-weight: lighter;letter-spacing: 45px;font-size: 360%;margin: 30px 0 20px;}
 header h2 { font-family: Codystar; color: gray; }
