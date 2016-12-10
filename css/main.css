@@ -1,0 +1,35 @@
+@import url("//fonts.googleapis.com/css?family=Codystar|Source+Code+Pro");
+*{color: #000; font-family:arial; font-weight:normal;}
+
+body,html{margin:0;padding:0;}
+body{background: #000000;}
+header {}
+header h1 {text-transform: uppercase;color: white;font-weight: lighter;letter-spacing: 45px;font-size: 360%;margin: 30px 0 20px;}
+header h2 { font-family: Codystar; color: gray; }
+.flash {}
+p {}
+p a {}
+header p{ color: #454545; }
+header p a { color: #1BA9A9; text-decoration: none; text-transform: uppercase; font-size: 80%; }
+a {    color: #e0e0e0;}
+p .tubular-mute {}
+.ram {display: none;}
+header{padding: 40px 20px 20px 20px;margin: 0 auto;background: #000000;width: 900px;text-align: center;}
+footer{}
+main{}
+.article{width: 300px;background: #151414;min-height: 300px;margin: 0px 20px 20px 0;border: solid 10px #000000;float: left;border-radius: 2px;}
+.article p{color: #464646;font-size: 18px;margin: 10px;font-family: Source Code Pro;}
+.tracks{ padding: 20px; background: #4B4B4B; }
+form{  }
+form fieldset{border: none;padding: 0;margin: 0;}
+form .input{    margin: 20px 0;}
+form .input label{ font-size: 20px; margin-right: 15px; min-width: 100px; display: inline-block; }
+form .input input{border: none;border-radius: 3px;background: #303030;min-width: 450px;font-size: 12px;padding: 10px;}
+form .submit{    margin: 20px 0;}
+form .submit input{border: none;background: #1BA9A5;color: #DDFFFE;font-size: 15px;padding: 10px 20px;border-radius: 3px;font-family: monospace;text-transform: uppercase;letter-spacing: 2px;}
+
+.content{margin: 20px auto;max-width: 2000px;}
+.hidden{display:none}
+.content h2{     color: #7B7B7B;     font-weight: 100;     font-family: monospace;     text-transform: uppercase;     letter-spacing: 5px; }
+
+time{color: #14bbda;}
