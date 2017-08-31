@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body,html{background-color:black; margin:0; padding:0;}
+        .wrapper{ margin:10%; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <button class="play" data="modular.mp3">modular.mp3</button>
+</div>
+
+<script>
+    var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var play = document.querySelector('.play');
+
+    function getData(file) {
+      source = audioCtx.createBufferSource();
+      request = new XMLHttpRequest();
+
+      request.open('GET', file, true);
+
+      request.responseType = 'arraybuffer';
+
+      request.onload = function() {
+        var audioData = request.response;
+        audioCtx.decodeAudioData(audioData, function(buffer) {
+            myBuffer = buffer;
+            source.buffer = myBuffer;
+            // source.playbackRate.value = playbackControl.value;
+            source.connect(audioCtx.destination);
+            source.loop = true;
+            source.start(0);
+          },
+
+          function(e){"Error with decoding audio data" + e.err});
+
+      }
+
+      request.send();
+    }
+
+    // wire up buttons to stop and play audio, and range slider control
+
+    play.onclick = function() {
+      getData(this.attributes.data.nodeValue);
+      //
+      // play.setAttribute('disabled', 'disabled');
+      // playbackControl.removeAttribute('disabled');
+    }
+
+</script>
+
+</body>
+</html>
+
