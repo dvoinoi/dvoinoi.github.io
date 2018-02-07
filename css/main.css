@@ -24,7 +24,7 @@ main{}
     padding-bottom: 30px;
     margin-bottom: 30px;
 }
-.article p{color: #464646;font-size: 18px;margin: 10px;font-family: Source Code Pro;}
+.article p{color: #464646;font-size: 18px;margin: 10px auto 40px;font-family: Source Code Pro;}
 .tracks{ padding: 20px; background: #4B4B4B; }
 form{  }
 form fieldset{border: none;padding: 0;margin: 0;}
