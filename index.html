@@ -1,39 +1,177 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-   <title>dvoinoi</title>
-   <meta name="description" content="Dvoinoi - live Techno, Noise, Video Art">
-   <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.0/jquery.min.js" type="text/javascript"></script>
-   <meta name="theme-color" content="#000" />
-   <link rel="stylesheet" type="text/css" href="css/main.css">
-   <style type="text/css">
-      * {margin:0; padding:0;}
-      .bg-ism {background-image: url("img/ism.gif"); position: absolute; z-index: 1; top:0; left:0; right:0; bottom:0;}
-      header{position: absolute; z-index: 2; top:0; left:0;}
-      header h1 {font-family: Arial; font-size: 13vw; color: #efefef; background: #000000d1; padding: 2vw;}
-      header ul li a {background: #3e3e3eed; padding: 1vw 6vw 1vw 1vw; display: inline-block;font-size: 6vw;}
-      header ul li a.bc {}
-      header ul li a.ab {background: #e4e4e4db;color: black;}
-      header ul li a.co {background: #9acc2ae8;}
-   </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dvoinoi</title>
+  <meta name="description" content="Dvoinoi — live Techno, Noise, Video Art">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="stylesheet" href="css/main.css">
+  <style>
+    body { overflow: hidden; height: 100vh; }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .landing {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 40px;
+      animation: fadeUp 0.8s ease-out;
+    }
+
+    .landing-title {
+      font-family: 'DM Mono', monospace;
+      font-size: clamp(3.5rem, 14vw, 9rem);
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .landing-title::after {
+      content: '_';
+      animation: blink 1s step-start infinite;
+      color: var(--accent);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    .landing-nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .landing-nav a {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      text-transform: lowercase;
+      letter-spacing: 0.1em;
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 2px;
+      background: #0a0a0acc;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .landing-nav a:hover {
+      color: var(--text);
+      border-color: #3a3a3a;
+    }
+
+    @media (max-width: 640px) {
+      .landing { padding: 24px; }
+    }
+  </style>
 </head>
 <body>
-   <div id="wrapper" itemscope itemtype="http://schema.org/MusicGroup">
 
-      <header>
-         <h1>DVOINOI</h1>
-         <p></p>
-         <ul>
-            <li><a class="bc" href="https://dvoinoi.bandcamp.com/">bandcamp</a></li>
-            <li><a class="ab" href="about.html">about</a></li>
-            <li><a class="co" href="mailto:dvoinoi.official@gmail.com">contact</a></li>
-         </ul>
-      </header>
+<canvas id="bg"></canvas>
 
-      <div class="bg-ism">
+<div class="landing">
+  <div class="landing-title">dvoinoi</div>
+  <nav class="landing-nav">
+    <a href="about.html">about</a>
+    <a href="releases.html">releases</a>
+    <a href="https://www.instagram.com/dvoinoi_/">media</a>
+    <a href="https://dvoinoi.bandcamp.com/">bandcamp</a>
+    <a href="mailto:dvoinoi.official@gmail.com">contact</a>
+  </nav>
+</div>
 
-      </div>
+<script>
+const canvas = document.getElementById('bg');
+const ctx    = canvas.getContext('2d');
+let W, H, t = 0;
 
-   </div>
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── parameters ──────────────────────────────────────────────
+const ROWS       = 38;
+const SCAN_COUNT = 3;
+const STEP       = 3;
+const SPEED      = 0.005;
+
+const scans = Array.from({ length: SCAN_COUNT }, (_, i) => ({
+  x:     0,
+  speed: 0.18 + i * 0.09,
+  phase: i * 2.1,
+}));
+
+// ── draw ────────────────────────────────────────────────────
+function draw() {
+  // solid dark fill each frame
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── horizontal interference lines ──────────────────────
+  for (let r = 0; r < ROWS; r++) {
+    const baseY  = H * (r + 0.5) / ROWS;
+    const phase  = r * 0.618;
+    const bright = 0.25 + 0.15 * Math.abs(Math.sin(r * 0.35 + t * 0.4));
+    const accent = (r % 9 === 4);
+
+    ctx.beginPath();
+    ctx.lineWidth   = accent ? 1.2 : 0.8;
+    ctx.strokeStyle = accent
+      ? `rgba(232, 93, 48, ${bright})`
+      : `rgba(232, 228, 222, ${bright * 0.45})`;
+
+    for (let x = 0; x <= W; x += STEP) {
+      const nx = x / W;
+      const y  = baseY
+        + 22 * Math.sin(nx * 5   + t * 0.6  + phase)
+        + 11 * Math.sin(nx * 13  - t * 0.35 + phase * 1.7)
+        +  5 * Math.sin(nx * 29  + t * 0.85 - phase * 0.6)
+        +  3 * Math.sin(nx * 61  - t * 0.18 + phase * 2.4)
+        +  1 * Math.sin(nx * 120 + t * 1.4  + phase * 0.3);
+
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // ── vertical scan lines ────────────────────────────────
+  scans.forEach(s => {
+    s.x = (W / 2) + (W * 0.45) * Math.sin(t * s.speed + s.phase);
+
+    const grad = ctx.createLinearGradient(s.x, 0, s.x, H);
+    grad.addColorStop(0,   'rgba(232, 93, 48, 0)');
+    grad.addColorStop(0.3, 'rgba(232, 93, 48, 0.15)');
+    grad.addColorStop(0.5, 'rgba(232, 93, 48, 0.25)');
+    grad.addColorStop(0.7, 'rgba(232, 93, 48, 0.15)');
+    grad.addColorStop(1,   'rgba(232, 93, 48, 0)');
+
+    ctx.beginPath();
+    ctx.strokeStyle = grad;
+    ctx.lineWidth   = 1.5;
+    ctx.moveTo(s.x, 0);
+    ctx.lineTo(s.x, H);
+    ctx.stroke();
+  });
+
+  t += SPEED;
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
 </body>
 </html>
