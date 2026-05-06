@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dvoinoi Unreleased Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-hover: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #e8e4de;
+    --text-dim: #7a756d;
+    --accent: #e85d30;
+    --accent-glow: #e85d3044;
+    --progress-bg: #1f1f1f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 20px;
+  }
+
+  .page {
+    max-width: 820px;
+    width: 100%;
+    animation: fadeUp 0.8s ease-out;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* --- HEADER --- */
+  .header {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 48px;
+    align-items: flex-start;
+  }
+
+  .album-art {
+    width: 260px;
+    height: 260px;
+    min-width: 260px;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: box-shadow 0.3s;
+  }
+  .album-art:hover {
+    box-shadow: 0 0 40px var(--accent-glow);
+  }
+  .album-art canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .album-art .play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0008;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .album-art:hover .play-overlay { opacity: 1; }
+  .play-overlay svg { width: 56px; height: 56px; fill: var(--text); }
+
+  .album-info { flex: 1; padding-top: 8px; }
+  .album-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 2.6rem;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .artist-name {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 20px;
+  }
+  .album-meta {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .album-meta span { display: block; }
+  .tag {
+    display: inline-block;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 3px 10px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-right: 6px;
+    margin-top: 12px;
+    text-transform: lowercase;
+  }
+
+  /* --- PLAYER BAR --- */
+  .player-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn {
+    background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .btn svg { fill: var(--text); width: 22px; height: 22px; transition: fill 0.2s; }
+  .btn:hover svg { fill: var(--accent); }
+  .btn-play svg { width: 28px; height: 28px; }
+
+  .now-playing {
+    flex: 1;
+    min-width: 0;
+  }
+  .now-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .now-time {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .progress-wrap {
+    flex: 2;
+    height: 6px;
+    background: var(--progress-bg);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.1s linear;
+  }
+
+  .volume-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .volume-bar {
+    width: 60px; height: 4px;
+    background: var(--progress-bg);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .volume-fill {
+    height: 100%; width: 80%;
+    background: var(--text-dim);
+    border-radius: 2px;
+  }
+
+  /* --- TRACK LIST --- */
+  .tracklist {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    overflow: hidden;
+  }
+  .track {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    gap: 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+  }
+  .track:last-child { border-bottom: none; }
+  .track:hover { background: var(--surface-hover); }
+  .track.active { background: var(--surface); }
+  .track.active .track-title { color: var(--accent); }
+
+  .track-num {
+    width: 24px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .track.active .track-num { color: var(--accent); }
+  .track-title {
+    flex: 1;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .track-dur {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  /* --- ABOUT --- */
+  .about {
+    margin-top: 40px;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .about p {
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.8;
+  }
+  .about a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .about a:hover {
+    text-decoration: underline;
+  }
+
+  .footer {
+    margin-top: 32px;
+    text-align: center;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* --- MOBILE --- */
+  @media (max-width: 640px) {
+    .header { flex-direction: column; align-items: center; text-align: center; gap: 20px; }
+    .album-art { width: 200px; height: 200px; min-width: 200px; }
+    .album-title { font-size: 2rem; }
+    .player-bar { flex-wrap: wrap; }
+    .progress-wrap { flex-basis: 100%; order: 10; }
+    .volume-wrap { display: none; }
+  }
+
+  @media (hover: none) {
+    .btn { min-width: 44px; min-height: 44px; }
+    .progress-wrap { height: 12px; border-radius: 6px; }
+    .progress-fill { border-radius: 6px; }
+    .track { padding: 16px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="album-art" id="albumArt" onclick="togglePlay()">
+      <canvas id="artCanvas" width="520" height="520"></canvas>
+      <div class="play-overlay">
+        <svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
+      </div>
+    </div>
+    <div class="album-info">
+      <div class="album-title">Unknown Album TBD</div>
+      <div class="artist-name">dvoinoi</div>
+      <div class="album-meta">
+        <span>2026 - Unreleased</span>
+        <span>9 tracks · 34.38</span>
+      </div>
+      <div style="margin-top: 16px;">
+        <span class="tag">avant-garde</span>
+        <span class="tag">leftfield</span>
+        <span class="tag">experimental</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAYER -->
+  <div class="player-bar">
+    <button class="btn" onclick="prevTrack()">
+      <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+    </button>
+    <button class="btn btn-play" id="btnPlay" onclick="togglePlay()">
+      <svg id="iconPlay" viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
+      <svg id="iconPause" viewBox="0 0 24 24" style="display:none"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+    </button>
+    <button class="btn" onclick="nextTrack()">
+      <svg viewBox="0 0 24 24"><path d="M16 18h2V6h-2zM6 18l8.5-6L6 6z"/></svg>
+    </button>
+    <div class="now-playing">
+      <div class="now-title" id="nowTitle"></div>
+      <div class="now-time"><span id="curTime">0:00</span> / <span id="durTime">0:00</span></div>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="volume-wrap">
+      <button class="btn" onclick="toggleMute()">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8.5v7a4.47 4.47 0 0 0 2.5-3.5z"/></svg>
+      </button>
+      <div class="volume-bar" id="volBar">
+        <div class="volume-fill" id="volFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACKLIST -->
+  <div class="tracklist" id="tracklist"></div>
+
+  <!-- ABOUT -->
+  <div class="about">
+    <p>
+      Between 1768 and 1774, the watchmaker Pierre Jaquet-Droz assembled three mechanical figures: The Writer, The Draughtsman, and The Musician, that could write, draw, and play a real organ with their own fingers. They were not alive. Everyone in the room knew they were not alive. And yet the illusion was irresistible, because the illusion was the point. This album spans 2025, developed alongside the software for an automata installation at <a href="https://www.elcorreo.com/bizkaia/nervion/ekomuseo-artea-abrira-puertas-enero-tras-superar-20251120201501-nt.html">Ekomuseo Artea</a>, each track a live recording of newly implemented functionality, a continuation of that same study. Three centuries later, humanity is still building the same machine. We call our understanding of consciousness a science, our fear of death a philosophy, and our latest chatbot a breakthrough, each one a clockwork doppelganger we wind up and set before ourselves, desperate for it to look back, all while we ignore the burning house and the urgent questions stay unanswered. The curse is not that we build these illusions. The curse is that we choose them.
+    </p>
+  </div>
+
+  <div class="footer">Thank you for listening</div>
+</div>
+
+<script>
+const TRACKS = [
+  { title: "TBD - Track 01", src: "01-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 02", src: "02-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 03", src: "03-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 04", src: "04-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 05", src: "05-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 06", src: "06-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 07", src: "07-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 08", src: "08-dvoinoi-2026-unreleased-demo.mp3" },
+  { title: "TBD - Track 09", src: "09-dvoinoi-2026-unreleased-demo.mp3" },
+];
+
+const audio = new Audio();
+audio.volume = 0.8;
+audio.src = TRACKS[0].src;
+let currentTrack = 0;
+
+audio.addEventListener('play',            updatePlayBtn);
+audio.addEventListener('pause',           updatePlayBtn);
+audio.addEventListener('ended',           () => nextTrack());
+audio.addEventListener('timeupdate',      tick);
+audio.addEventListener('loadedmetadata',  tick);
+
+function playTrack(index) {
+  currentTrack = index;
+  audio.src = TRACKS[index].src;
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
+  updateUI();
+}
+
+function togglePlay() {
+  if (audio.paused) {
+    audio.play().catch(() => {});
+  } else {
+    audio.pause();
+  }
+}
+
+function nextTrack() { playTrack((currentTrack + 1) % TRACKS.length); }
+function prevTrack() { playTrack((currentTrack - 1 + TRACKS.length) % TRACKS.length); }
+
+function tick() {
+  const dur = audio.duration || 0;
+  const elapsed = audio.currentTime || 0;
+  const pct = dur ? Math.min(100, (elapsed / dur) * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('curTime').textContent = fmtTime(elapsed);
+  document.getElementById('durTime').textContent = fmtTime(dur);
+}
+
+function fmtTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+function updatePlayBtn() {
+  document.getElementById('iconPlay').style.display  = audio.paused ? 'block' : 'none';
+  document.getElementById('iconPause').style.display = audio.paused ? 'none' : 'block';
+}
+
+function updateUI() {
+  document.getElementById('nowTitle').textContent = TRACKS[currentTrack].title;
+  document.querySelectorAll('.track').forEach((el, i) => {
+    el.classList.toggle('active', i === currentTrack);
+  });
+}
+
+// Progress seek, supports both click and touch scrubbing
+function seekTo(clientX, el) {
+  if (!audio.duration) return;
+  const rect = el.getBoundingClientRect();
+  audio.currentTime = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * audio.duration;
+}
+const progressWrap = document.getElementById('progressWrap');
+progressWrap.addEventListener('click',      e => seekTo(e.clientX, progressWrap));
+progressWrap.addEventListener('touchstart', e => { e.preventDefault(); seekTo(e.touches[0].clientX, progressWrap); }, { passive: false });
+progressWrap.addEventListener('touchmove',  e => { e.preventDefault(); seekTo(e.touches[0].clientX, progressWrap); }, { passive: false });
+
+// Volume
+document.getElementById('volBar').addEventListener('click', e => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  audio.volume = pct;
+  document.getElementById('volFill').style.width = (pct * 100) + '%';
+});
+
+function toggleMute() {
+  audio.volume = audio.volume > 0 ? 0 : 0.8;
+  document.getElementById('volFill').style.width = (audio.volume * 100) + '%';
+}
+
+// Build tracklist
+const tl = document.getElementById('tracklist');
+TRACKS.forEach((t, i) => {
+  const row = document.createElement('div');
+  row.className = 'track';
+  row.innerHTML = `
+    <div class="track-num">${String(i + 1).padStart(2, '0')}</div>
+    <div class="track-title">${t.title}</div>
+  `;
+  row.addEventListener('click', () => playTrack(i));
+  tl.appendChild(row);
+});
+updateUI();
+
+// --- Generative album art (animated) ---
+(function() {
+  const c   = document.getElementById('artCanvas');
+  const ctx = c.getContext('2d');
+  const W   = c.width, H = c.height;
+  const ROWS = 28, STEP = 2, SPEED = 0.005;
+  let t = 0;
+
+  const scans = [
+    { speed: 0.18, phase: 0 },
+    { speed: 0.27, phase: 2.1 },
+  ];
+
+  function draw() {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+
+    for (let r = 0; r < ROWS; r++) {
+      const baseY  = H * (r + 0.5) / ROWS;
+      const phase  = r * 0.618;
+      const bright = 0.25 + 0.15 * Math.abs(Math.sin(r * 0.35 + t * 0.4));
+      const accent = (r % 9 === 4);
+
+      ctx.beginPath();
+      ctx.lineWidth   = accent ? 1.2 : 0.8;
+      ctx.strokeStyle = accent
+        ? `rgba(232, 93, 48, ${bright})`
+        : `rgba(232, 228, 222, ${bright * 0.45})`;
+
+      for (let x = 0; x <= W; x += STEP) {
+        const nx = x / W;
+        const y  = baseY
+          + 14 * Math.sin(nx * 5   + t * 0.6  + phase)
+          +  7 * Math.sin(nx * 13  - t * 0.35 + phase * 1.7)
+          +  3 * Math.sin(nx * 29  + t * 0.85 - phase * 0.6)
+          +  2 * Math.sin(nx * 61  - t * 0.18 + phase * 2.4)
+          +  1 * Math.sin(nx * 120 + t * 1.4  + phase * 0.3);
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    scans.forEach(s => {
+      const x    = (W / 2) + (W * 0.45) * Math.sin(t * s.speed + s.phase);
+      const grad = ctx.createLinearGradient(x, 0, x, H);
+      grad.addColorStop(0,   'rgba(232, 93, 48, 0)');
+      grad.addColorStop(0.3, 'rgba(232, 93, 48, 0.15)');
+      grad.addColorStop(0.5, 'rgba(232, 93, 48, 0.25)');
+      grad.addColorStop(0.7, 'rgba(232, 93, 48, 0.15)');
+      grad.addColorStop(1,   'rgba(232, 93, 48, 0)');
+      ctx.beginPath();
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = 1.5;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    });
+
+    t += SPEED;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>
