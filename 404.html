@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 — dvoinoi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --text: #e8e4de;
+    --text-dim: #7a756d;
+    --accent: #e85d30;
+    --accent-glow: #e85d3044;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 560px;
+    animation: fadeUp 0.9s ease-out;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .code {
+    font-size: 6rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--accent);
+    margin-bottom: 8px;
+    text-shadow: 0 0 60px var(--accent-glow);
+  }
+
+  .label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    margin-bottom: 48px;
+  }
+
+  .message {
+    font-size: 0.88rem;
+    line-height: 1.85;
+    color: var(--text);
+    margin-bottom: 48px;
+    border-left: 1px solid var(--accent);
+    padding-left: 20px;
+    text-align: left;
+  }
+
+  .message em {
+    color: var(--text-dim);
+    font-style: normal;
+  }
+
+  .back {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    padding: 10px 24px;
+    border-radius: 2px;
+    transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  .back:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .footer {
+    position: fixed;
+    bottom: 24px;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="content">
+  <div class="code">404</div>
+  <div class="label">page not found</div>
+  <div class="message">
+    You followed a reflection.<br>
+    The original was never here.<br><br>
+    <em>dvoinoi — двойной — the double, the twin, the other one.<br>
+    We have always known there are two of everything:<br>
+    the thing, and the ghost of the thing.<br>
+    You found the ghost.</em>
+  </div>
+  <a class="back" href="/">return to the original</a>
+</div>
+
+<div class="footer">dvoinoi</div>
+
+<script>
+(function () {
+  const c   = document.getElementById('bg');
+  const ctx = c.getContext('2d');
+  let W, H, t = 0;
+
+  function resize() {
+    W = c.width  = window.innerWidth;
+    H = c.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const ROWS = 22, STEP = 2, SPEED = 0.004;
+
+  function draw() {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+
+    for (let r = 0; r < ROWS; r++) {
+      const baseY  = H * (r + 0.5) / ROWS;
+      const phase  = r * 0.618;
+      const bright = 0.3 + 0.2 * Math.abs(Math.sin(r * 0.35 + t * 0.4));
+      const accent = (r % 9 === 4);
+
+      ctx.beginPath();
+      ctx.lineWidth   = accent ? 1.2 : 0.7;
+      ctx.strokeStyle = accent
+        ? `rgba(232, 93, 48, ${bright})`
+        : `rgba(232, 228, 222, ${bright * 0.4})`;
+
+      for (let x = 0; x <= W; x += STEP) {
+        const nx = x / W;
+        const y  = baseY
+          + 14 * Math.sin(nx * 5   + t * 0.6  + phase)
+          +  7 * Math.sin(nx * 13  - t * 0.35 + phase * 1.7)
+          +  3 * Math.sin(nx * 29  + t * 0.85 - phase * 0.6)
+          +  2 * Math.sin(nx * 61  - t * 0.18 + phase * 2.4)
+          +  1 * Math.sin(nx * 120 + t * 1.4  + phase * 0.3);
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    t += SPEED;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>
