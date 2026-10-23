@@ -113,6 +113,8 @@ const OPTS = {
   tint: ['Bone', 'Pure', 'Phosphor', 'Amber', 'Cyanotype', 'Blood', 'Paper'],
   echoMode: ['Smear', 'Trails', 'Burn'],
   blend: ['Multiply', 'Screen', 'Difference', 'Overlay'],
+  vidMode: ['Play', 'Loop range', 'Random jumps', 'Stutter', 'Bounce', 'Random stills'],
+  vidSound: ['Muted', 'React silently', 'React + play sound'],
 };
 const LEVELS = [0, 256, 16, 4, 2];
 const TINTS = [
@@ -131,6 +133,7 @@ const BASE = {
   depth: 4, pixel: 2, dither: 0, contrast: 1.5, level: 0, invert: 0, tint: 0,
   echo: 0, echoMode: 0, echoZoom: 0.2, echoSpin: 0,
   haze: 0.35, blend: 0, photoCycle: 12,
+  vidMode: 0, vidSpeed: 1, vidStart: 0, vidLength: 1, vidJump: 2, vidStutter: 0.25, vidSound: 0,
   autoRupture: 6, evolve: 0.3, shuffle: 0,
   audioGain: 1, audioDrive: 0.6, beats: 1,
 };
@@ -164,6 +167,10 @@ const SCHEMA = [
   ['Photo', false, [
     ['haze', 'Haze', 0, 1, 0.01], ['blend', 'Blend', 'sel'], ['photoCycle', 'Cycle (s)', 0, 60, 1],
   ], 'photo'],
+  ['Video', false, [
+    ['vidMode', 'Mode', 'sel'], ['vidSpeed', 'Speed', 0.1, 4, 0.01], ['vidStart', 'Loop start', 0, 1, 0.01], ['vidLength', 'Loop length', 0.01, 1, 0.01],
+    ['vidJump', 'Jump every (s)', 0.1, 10, 0.1], ['vidStutter', 'Stutter (s)', 0.04, 2, 0.01], ['vidSound', 'Sound', 'sel'],
+  ], 'video'],
   ['Autopilot', false, [
     ['autoRupture', 'Ruptures/min', 0, 60, 1], ['evolve', 'Evolve', 0, 1, 0.01], ['shuffle', 'Shuffle (s)', 0, 120, 1],
   ], 'autopilot'],
@@ -585,7 +592,10 @@ function toField(cx, cy) {
   return [(cx - r.left - r.width / 2) / r.height, (r.height / 2 - (cy - r.top)) / r.height];
 }
 
-let down = false, pressType = 0, lastSmear = 0, lastPos = [0, 0], audioArmed = null;
+let down = false, pressType = 0, lastSmear = 0, lastPos = [0, 0];
+// things that need a click first (sound, unmuting): they run on the next click or key press
+const armed = [];
+function runArmed() { armed.splice(0).forEach(f => { try { f(); } catch (e) {} }); }
 canvas.addEventListener('pointerdown', e => {
   down = true;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -593,7 +603,8 @@ canvas.addEventListener('pointerdown', e => {
   pressType = pickEffect();
   rupture(x, y, 1, pressType);
   lastPos = [x, y]; lastSmear = clock();
-  if (audioArmed) { const f = audioArmed; audioArmed = null; f(); }
+  runArmed();
+  if (vid && (P.vidMode === 2 || P.vidMode === 5)) vidJump();
 });
 canvas.addEventListener('pointermove', e => {
   if (!down) return;
@@ -641,6 +652,7 @@ function loadImage(url) {
 async function addPhotoFiles(files) {
   const list = [...files].filter(f => /^image\//.test(f.type));
   if (!list.length) return;
+  if (vid) removeVideo();   // photos or video, never both
   for (const f of list) {
     const url = URL.createObjectURL(f);
     try { photos.push(imageToPhoto(await loadImage(url))); } catch (e) { status(e.message); }
@@ -651,6 +663,7 @@ async function addPhotoFiles(files) {
   status(list.length === 1 ? 'Photo added' : list.length + ' photos added');
 }
 async function addPhotoUrls(urls) {
+  if (vid) removeVideo();
   for (const u of urls) {
     try { photos.push(imageToPhoto(await loadImage(u), /^data:/.test(u) ? null : u)); }
     catch (e) { status(e.message); }
@@ -661,6 +674,7 @@ async function addPhotoUrls(urls) {
 function showPhoto(i) {
   if (!photos.length) return;
   i = ((i % photos.length) + photos.length) % photos.length;
+  if (vid) { photoIdx = i; photoUI(); return; }   // a loaded video takes the place of photos
   const ph = photos[i];
   if (photoIdx < 0) {
     upload(photoTexA, 2, ph.canvas); aspectA = ph.aspect;
@@ -675,9 +689,134 @@ function showPhoto(i) {
 function clearPhotos() { photos.length = 0; photoIdx = -1; photoTrans = null; photoUI(); }
 
 /* =========================================================================
+   Video
+   ========================================================================= */
+let vid = null, vidReady = false, vidUrl = null, vidObjUrl = null, vidFrameNew = true, vidRVFC = false;
+let vidDir = 1, vidNextJump = 0, stut = null, vidNode = null, vidGain = null, vidNoteEl = null;
+const userActive = () => !navigator.userActivation || navigator.userActivation.hasBeenActive;
+function whenActive(fn) { if (userActive()) fn(); else armed.push(fn); }
+function loadVideo(url, label) {
+  removeVideo(true);
+  clearPhotos();   // photos or video, never both
+  const v = document.createElement('video');
+  v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+  if (!/^(blob|data):/.test(url)) v.crossOrigin = 'anonymous';
+  v.addEventListener('loadeddata', () => {
+    if (vid !== v) return;
+    vidReady = true; vidFrameNew = true;
+    status('Video loaded: ' + label); videoUI();
+    if (P.vidSound) whenActive(routeVideoAudio);
+  });
+  v.addEventListener('seeked', () => { vidFrameNew = true; });
+  v.addEventListener('error', () => {
+    if (vid !== v) return;
+    status('That video could not play here. MP4 (H.264) and WebM work best. If Claude blocks it, your downloaded page will still play it.');
+    removeVideo();
+  });
+  vidRVFC = 'requestVideoFrameCallback' in v;
+  if (vidRVFC) { const cb = () => { vidFrameNew = true; if (vid === v) v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+  vid = v; vidUrl = url;
+  document.body.appendChild(v);
+  v.src = url;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => armed.push(() => v.play().catch(() => {})));
+  stut = null; vidNextJump = 0; vidDir = 1;
+  videoUI();
+}
+function loadVideoFile(f) {
+  const url = URL.createObjectURL(f);
+  loadVideo(url, f.name);
+  vidObjUrl = url;
+}
+function removeVideo(quiet) {
+  if (vid) { try { vid.pause(); vid.removeAttribute('src'); vid.load(); } catch (e) {} vid.remove(); }
+  if (vidNode) { try { vidNode.disconnect(); vidGain.disconnect(); } catch (e) {} }
+  if (vidObjUrl) URL.revokeObjectURL(vidObjUrl);
+  vid = null; vidReady = false; vidUrl = null; vidObjUrl = null; vidNode = null; vidGain = null;
+  if (typeof au !== 'undefined') au.vActive = false;
+  if (photoIdx >= 0 && photos[photoIdx]) { upload(photoTexA, 2, photos[photoIdx].canvas); aspectA = photos[photoIdx].aspect; }
+  if (!quiet) { videoUI(); audioUI(); }
+}
+async function routeVideoAudio() {
+  if (!vid || !vidReady) return;
+  if (!P.vidSound) { vid.muted = true; au.vActive = false; audioUI(); return; }
+  try {
+    await ensureCtx();
+    if (!vidNode) {
+      vidNode = au.ctx.createMediaElementSource(vid);
+      vidGain = au.ctx.createGain();
+      vidNode.connect(au.an); vidNode.connect(vidGain); vidGain.connect(au.ctx.destination);
+    }
+    vidGain.gain.value = P.vidSound === 2 ? 1 : 0;
+    vid.muted = false;
+    if (vid.paused && !paused) vid.play().catch(() => {});
+    au.vActive = true;
+  } catch (e) { status('The video sound could not be used here.'); }
+  audioUI();
+}
+function vidRange() {
+  const D = vid.duration;
+  const a = Math.min(P.vidStart, 0.99) * D;
+  const b = Math.min(D, a + Math.max(0.04, P.vidLength * D));
+  return [a, b];
+}
+function vidSeek(t) { if (vid && !vid.seeking) vid.currentTime = t; }
+function vidJump() {
+  if (!vid || !vidReady || !isFinite(vid.duration)) return;
+  const [a, b] = vidRange();
+  vidSeek(a + Math.random() * Math.max(0.01, b - a - 0.05));
+  stut = null;
+}
+function updateVideo(c, dt) {
+  if (!vid || !vidReady) return;
+  const D = vid.duration;
+  if (!isFinite(D) || D <= 0) return;
+  const [a, b] = vidRange();
+  const m = P.vidMode;
+  const manual = m === 4 || m === 5;
+  if (paused || manual) { if (!vid.paused) vid.pause(); }
+  else if (vid.paused) vid.play().catch(() => {});
+  if (!manual) {
+    const rate = Math.max(0.1, Math.min(4, P.vidSpeed));
+    if (Math.abs(vid.playbackRate - rate) > 0.001) vid.playbackRate = rate;
+  }
+  if (paused) return;
+  const t = vid.currentTime;
+  if (m === 0) { vid.loop = true; }
+  else if (m === 1) { vid.loop = false; if (t < a - 0.08 || t >= b - 0.02 || vid.ended) vidSeek(a); }
+  else if (m === 2 || m === 5) {
+    vid.loop = true;
+    if (c >= vidNextJump) { vidJump(); vidNextJump = c + P.vidJump * (0.6 + 0.8 * Math.random()); }
+  } else if (m === 3) {
+    vid.loop = true;
+    const seg = Math.min(P.vidStutter, Math.max(0.04, b - a));
+    if (!stut) {
+      const s0 = a + Math.random() * Math.max(0, b - a - seg);
+      stut = { s: s0, reps: 2 + RI(5), n: 0 };
+      vidSeek(s0);
+    } else if (!vid.seeking && (t >= stut.s + seg || t < stut.s - 0.15)) {
+      stut.n++;
+      if (stut.n >= stut.reps) stut = null; else vidSeek(stut.s);
+    }
+  } else if (m === 4) {   // bounce: step the playhead by hand so it can run backwards
+    if (!vid.seeking) {
+      let nt = t + vidDir * dt * P.vidSpeed;
+      if (nt >= b) { nt = b; vidDir = -1; }
+      if (nt <= a) { nt = a; vidDir = 1; }
+      vid.currentTime = nt;
+    }
+  }
+}
+function videoUI() {
+  if (vidNoteEl) vidNoteEl.textContent = vid ? (vidReady ? 'Video loaded. Adding photos will replace it.' : 'Loading video…') : 'No video. You can also drop a video file anywhere.';
+}
+
+/* =========================================================================
    Audio
    ========================================================================= */
-const au = { ctx: null, an: null, data: null, node: null, stream: null, level: 0, bass: 0, treble: 0, bassAvg: 0.1, lastBeat: 0, kind: 'off' };
+const au = { ctx: null, an: null, data: null, node: null, stream: null, level: 0, bass: 0, treble: 0, bassAvg: 0.1, lastBeat: 0, kind: 'off', vActive: false };
 function ensureCtx() {
   if (!au.ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -733,15 +872,15 @@ async function loadAudioUrl(url) {
     const res = await fetch(url);
     const arr = await res.arrayBuffer();
     // browsers only start sound after a click, so the track waits for the first one
-    audioArmed = async () => {
+    armed.push(async () => {
       await ensureCtx();
       const buf = await au.ctx.decodeAudioData(arr.slice(0));
       playBuffer(buf, url.split('/').pop());
-    };
+    });
   } catch (e) { console.warn('Audio could not load', e); }
 }
 function updateAudio(c) {
-  if (au.kind === 'off' || !au.an) return;
+  if (!au.an || (au.kind === 'off' && !au.vActive)) return;
   au.an.getByteFrequencyData(au.data);
   const d = au.data, n = d.length;
   let s = 0, b = 0, tr = 0;
@@ -758,6 +897,7 @@ function updateAudio(c) {
   if (P.beats && bass > au.bassAvg * 1.35 + 0.06 && c - au.lastBeat > 0.22) {
     const [x, y] = randomSpot();
     rupture(x, y, Math.min(1.6, bass * 1.4), pickEffect());
+    if (vid && (P.vidMode === 2 || P.vidMode === 5)) vidJump();
     au.lastBeat = c;
   }
   au.bassAvg += (bass - au.bassAvg) * 0.04;
@@ -813,6 +953,7 @@ function currentPreset(name, withPhotos) {
   const pr = { app: 'static-ash', version: 1, name: name || 'Untitled', params: Object.assign({}, P), kiosk: !!kiosk };
   if (withPhotos && photos.length) pr.photos = photos.map(ph => ph.src || photoToDataUrl(ph));
   if (audioUrl) pr.audio = audioUrl;
+  if (vidUrl && !/^(blob|data):/.test(vidUrl)) pr.video = vidUrl;
   return pr;
 }
 function applyParams(params) {
@@ -827,6 +968,7 @@ async function applyPreset(pr, opts) {
   if (typeof pr.kiosk === 'boolean' && opts && opts.boot) setKiosk(pr.kiosk);
   if (Array.isArray(pr.photos) && pr.photos.length) { clearPhotos(); await addPhotoUrls(pr.photos.filter(s => typeof s === 'string')); }
   if (typeof pr.audio === 'string' && pr.audio) { audioUrl = pr.audio; loadAudioUrl(pr.audio); }
+  if (typeof pr.video === 'string' && pr.video) loadVideo(pr.video, pr.video.split('/').pop());
 }
 function parsePreset(text) {
   const o = JSON.parse(text);
@@ -919,6 +1061,8 @@ function setParam(key, v) {
   if (controls[key]) controls[key].set(v);
   if (key === 'pixel') resize();
   if (key === 'field' && v !== fieldCur) fieldTrans = { to: v, start: clock() };
+  if (key === 'vidSound') whenActive(routeVideoAudio);
+  if (key === 'vidMode') { stut = null; vidNextJump = 0; vidDir = 1; }
   saveSession();
 }
 
@@ -937,7 +1081,7 @@ function extraAutopilot() {
 }
 function photoUI() {
   if (!photoCountEl) return;
-  photoCountEl.textContent = photos.length ? (photos.length === 1 ? '1 photo' : photos.length + ' photos, showing ' + (photoIdx + 1)) : 'No photo. You can also drop or paste images anywhere.';
+  photoCountEl.textContent = photos.length ? (photos.length === 1 ? '1 photo' : photos.length + ' photos, showing ' + (photoIdx + 1)) : 'No photos. Adding photos replaces a loaded video. You can also drop or paste images anywhere.';
 }
 function extraPhoto() {
   const input = h('input', { type: 'file', accept: 'image/*', multiple: '', 'aria-label': 'Add photos', onchange: e => { addPhotoFiles(e.target.files); e.target.value = ''; } });
@@ -953,8 +1097,21 @@ function extraPhoto() {
     photoCountEl,
   ]);
 }
+function extraVideo() {
+  const input = h('input', { type: 'file', accept: 'video/*', 'aria-label': 'Load a video', onchange: e => { if (e.target.files[0]) loadVideoFile(e.target.files[0]); e.target.value = ''; } });
+  vidNoteEl = h('p', { class: 'note' });
+  videoUI();
+  return h('div', { class: 'sec', style: 'padding:0;gap:8px' }, [
+    h('div', { class: 'btns' }, [
+      h('label', { class: 'filebtn' }, [input, h('span', { text: 'Load video' })]),
+      h('button', { class: 'btn', type: 'button', text: 'Jump', onclick: vidJump }),
+      h('button', { class: 'btn', type: 'button', text: 'Remove', onclick: () => removeVideo() }),
+    ]),
+    vidNoteEl,
+  ]);
+}
 function audioUI() {
-  if (audioStateEl) audioStateEl.textContent = au.kind === 'mic' ? 'Microphone on' : au.kind === 'file' ? 'Audio file playing' : 'Audio off';
+  if (audioStateEl) audioStateEl.textContent = au.kind === 'mic' ? 'Microphone on' : au.kind === 'file' ? 'Audio file playing' : au.vActive ? 'Reacting to the video sound' : 'Audio off';
 }
 function extraAudio() {
   const input = h('input', { type: 'file', accept: 'audio/*', 'aria-label': 'Play an audio file', onchange: e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); e.target.value = ''; } });
@@ -1035,7 +1192,10 @@ function extraPresets() {
     h('div', { class: 'btns' }, [
       h('button', { class: 'btn', type: 'button', text: 'Download .json', onclick: () => saveFile(slug(nm()) + '.json', JSON.stringify(currentPreset(nm(), includePhotos.checked), null, 2)) }),
       h('label', { class: 'filebtn' }, [jsonFile, h('span', { text: 'Open .json' })]),
-      h('button', { class: 'btn', type: 'button', text: 'Download page .html', onclick: () => saveFile(slug(nm()) + '.html', buildPage(currentPreset(nm(), includePhotos.checked))) }),
+      h('button', { class: 'btn', type: 'button', text: 'Download page .html', onclick: async () => {
+        await saveFile(slug(nm()) + '.html', buildPage(currentPreset(nm(), includePhotos.checked)));
+        if (vidObjUrl) status('Videos are not packed into the page. Put the video file next to the page and add "video": "your-file.mp4" to its preset.');
+      } }),
     ]),
     h('div', { class: 'btns' }, [
       h('button', { class: 'btn', type: 'button', text: 'Snapshot .png', onclick: () => { snapPending = true; } }),
@@ -1093,12 +1253,13 @@ fsBtn.addEventListener('click', toggleFullscreen);
 }));
 const panel = h('div', { id: 'panel', role: 'region', 'aria-label': 'Controls' });
 panel.hidden = true;
-const EXTRAS = { rupture: extraRupture, photo: extraPhoto, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
+const EXTRAS = { rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
 SCHEMA.forEach(([title, open, specs, extra]) => {
   const sec = h('div', { class: 'sec' });
-  if (extra === 'photo' || extra === 'audio') sec.appendChild(EXTRAS[extra]());
+  const top = extra === 'photo' || extra === 'audio' || extra === 'video';
+  if (top) sec.appendChild(EXTRAS[extra]());
   specs.forEach(s => sec.appendChild(control(s)));
-  if (extra && extra !== 'photo' && extra !== 'audio') sec.appendChild(EXTRAS[extra]());
+  if (extra && !top) sec.appendChild(EXTRAS[extra]());
   const d = h('details', {}, [h('summary', { text: title }), sec]);
   if (open) d.open = true;
   panel.appendChild(d);
@@ -1119,7 +1280,9 @@ corner.addEventListener('click', () => setPanel(panel.hidden));
 /* ---------- keyboard, drop, paste ---------- */
 window.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
+  runArmed();
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.key === 'j' || e.key === 'J') vidJump();
   if (e.code === 'Space' && tag !== 'BUTTON') { e.preventDefault(); setPaused(!paused); }
   else if (e.key === 'Escape') setPanel(false);
   else if (e.key === 'c' || e.key === 'C') { corner.hidden = !corner.hidden; fsBtn.hidden = corner.hidden; if (corner.hidden) setPanel(false); }
@@ -1134,6 +1297,8 @@ window.addEventListener('drop', async e => {
   const files = e.dataTransfer ? [...e.dataTransfer.files] : [];
   const imgs = files.filter(f => /^image\//.test(f.type));
   if (imgs.length) addPhotoFiles(imgs);
+  const vids = files.filter(f => /^video\//.test(f.type));
+  if (vids.length) loadVideoFile(vids[0]);
   const aud = files.find(f => /^audio\//.test(f.type));
   if (aud) loadAudioFile(aud);
   const js = files.find(f => /\.json$/i.test(f.name) || f.type === 'application/json');
@@ -1180,7 +1345,7 @@ function frame(now) {
   // evolve: slow, independent drifts around your settings
   const E = P.evolve;
   const ev = (amp, per, ph) => E * amp * Math.sin(c * per + ph);
-  const drive = au.kind === 'off' ? 0 : P.audioDrive;
+  const drive = au.kind === 'off' && !au.vActive ? 0 : P.audioDrive;
   const warp = P.warp * (1 + ev(0.5, 0.051, 0)) * (1 + au.bass * drive * 1.2);
   const scale = P.scale * (1 + ev(0.35, 0.037, 1));
   const patSize = Math.max(4, P.patSize * (1 + ev(0.4, 0.029, 2)));
@@ -1197,8 +1362,18 @@ function frame(now) {
     spinAngle += dt * spinRate * 0.3 * motionMul;
     if (P.autoRupture > 0 && Math.random() < dt * P.autoRupture / 60) { const [x, y] = randomSpot(); rupture(x, y, R(0.5, 1.1), pickEffect()); }
     if (P.shuffle > 0 && c - lastShuffle > P.shuffle) { lastShuffle = c; shuffle(); }
-    if (photos.length > 1 && P.photoCycle > 0 && !photoTrans && c - lastPhotoSwitch > P.photoCycle) showPhoto(photoIdx + 1);
+    if (photos.length > 1 && P.photoCycle > 0 && !photoTrans && !vid && c - lastPhotoSwitch > P.photoCycle) showPhoto(photoIdx + 1);
   } else { lastShuffle = c; lastPhotoSwitch = Math.max(lastPhotoSwitch, c - P.photoCycle + 1); }
+
+  // video: run the playback mode, then copy the newest frame into the photo texture
+  updateVideo(c, dt);
+  if (vid && vidReady && vid.readyState >= 2 && (vidFrameNew || !vidRVFC)) {
+    try {
+      upload(photoTexA, 2, vid);
+      aspectA = (vid.videoWidth || 16) / (vid.videoHeight || 9);
+    } catch (e) { status('This video is blocked from being used as an image by the site that hosts it.'); removeVideo(); }
+    vidFrameNew = false;
+  }
 
   // transitions
   let fieldMix = 0;
@@ -1243,7 +1418,7 @@ function frame(now) {
   gl.uniform1f(US.uPatAngle, patAngle);
   gl.uniform1f(US.uGlitch, Math.min(1, P.glitch + au.treble * drive * 0.6));
   gl.uniform1f(US.uJitter, au.treble * drive * 1.5);
-  gl.uniform1f(US.uHasPhoto, photoIdx >= 0 ? 1 : 0);
+  gl.uniform1f(US.uHasPhoto, (photoIdx >= 0 || vidReady) ? 1 : 0);
   gl.uniform1f(US.uAspectA, aspectA);
   gl.uniform1f(US.uAspectB, aspectB);
   gl.uniform1f(US.uPhotoMix, photoMix);
