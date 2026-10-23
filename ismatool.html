@@ -23,14 +23,17 @@ body {
 canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; image-rendering: pixelated; }
 body.nocursor canvas#view { cursor: none; }
 
-#corner {
-  position: fixed; right: calc(env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px));
+#corner, #fs {
+  position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px));
   width: 34px; height: 34px; padding: 0; border: 0; background: transparent; cursor: pointer; z-index: 5;
 }
-#corner svg { display: block; width: 100%; height: 100%; }
-#corner polygon { fill: #000; stroke: rgba(230, 227, 220, 0.28); stroke-width: 1; transition: stroke .2s; }
-#corner:hover polygon, #corner:focus-visible polygon, #corner[aria-expanded="true"] polygon { stroke: rgba(230, 227, 220, 0.8); }
-#corner:focus-visible { outline: none; }
+#corner { right: calc(env(safe-area-inset-right, 0px)); }
+#fs { left: calc(env(safe-area-inset-left, 0px)); }
+#corner svg, #fs svg { display: block; width: 100%; height: 100%; }
+#corner polygon, #fs polygon { fill: #000; stroke: rgba(230, 227, 220, 0.28); stroke-width: 1; transition: stroke .2s; }
+#corner:hover polygon, #corner:focus-visible polygon, #corner[aria-expanded="true"] polygon,
+#fs:hover polygon, #fs:focus-visible polygon, #fs[aria-pressed="true"] polygon { stroke: rgba(230, 227, 220, 0.8); }
+#corner:focus-visible, #fs:focus-visible { outline: none; }
 
 #panel {
   position: fixed; z-index: 4;
@@ -88,7 +91,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .check input { accent-color: var(--bone); margin: 0; }
 #status { min-height: 14px; padding: 8px 12px 10px; border-top: 1px solid var(--rule); color: var(--ash); font-size: 10px; }
 .fail { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding-inline: 24px; color: var(--ash); line-height: 1.7; }
-@media (prefers-reduced-motion: reduce) { #corner polygon { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #corner polygon, #fs polygon { transition: none; } }
 </style>
 </head><body>
 <!-- Paste an exported preset JSON between these two tags to make this page start with it. -->
@@ -987,6 +990,7 @@ function setKiosk(on) {
   kiosk = !!on;
   if (kioskBox) kioskBox.checked = kiosk;
   corner.hidden = kiosk && panel.hidden;
+  fsBtn.hidden = corner.hidden;
 }
 function extraPresets() {
   presetSel = h('select', { id: 'c-preset', 'aria-label': 'Preset', onchange: () => {
@@ -1021,7 +1025,7 @@ function extraPresets() {
       } }),
     ]),
     h('label', { class: 'check' }, [includePhotos, h('span', { text: 'Include photos in exports' })]),
-    h('label', { class: 'check' }, [kioskBox, h('span', { text: 'Exported page starts with no triangle (press C to show it)' })]),
+    h('label', { class: 'check' }, [kioskBox, h('span', { text: 'Exported page starts with no triangles (press C to show them)' })]),
     h('div', { class: 'btns' }, [
       h('button', { class: 'btn', type: 'button', text: 'Show JSON', onclick: () => { jsonTa.value = JSON.stringify(currentPreset(nm(), includePhotos.checked), null, 1); } }),
       h('button', { class: 'btn', type: 'button', text: 'Copy JSON', onclick: () => { const t = JSON.stringify(currentPreset(nm(), includePhotos.checked)); jsonTa.value = t; copyText(t, jsonTa); } }),
@@ -1067,6 +1071,26 @@ function toggleRecord() {
 /* ---------- corner triangle + panel ---------- */
 const corner = h('button', { id: 'corner', type: 'button', 'aria-label': 'Show controls', 'aria-expanded': 'false', 'aria-controls': 'panel' });
 corner.innerHTML = '<svg viewBox="0 0 34 34" aria-hidden="true"><polygon points="33.5,4 33.5,33.5 4,33.5"></polygon></svg>';
+const fsBtn = h('button', { id: 'fs', type: 'button', 'aria-label': 'Full screen', 'aria-pressed': 'false' });
+fsBtn.innerHTML = '<svg viewBox="0 0 34 34" aria-hidden="true"><polygon points="0.5,4 0.5,33.5 30,33.5"></polygon></svg>';
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+function toggleFullscreen() {
+  const root = document.documentElement;
+  try {
+    if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else {
+      const req = root.requestFullscreen || root.webkitRequestFullscreen;
+      const r = req && req.call(root);
+      if (r && r.catch) r.catch(() => status('Full screen is not available here. Open the page in its own tab or your exported page.'));
+    }
+  } catch (e) { status('Full screen is not available here.'); }
+}
+fsBtn.addEventListener('click', toggleFullscreen);
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => {
+  const on = !!fsEl();
+  fsBtn.setAttribute('aria-pressed', String(on));
+  fsBtn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+}));
 const panel = h('div', { id: 'panel', role: 'region', 'aria-label': 'Controls' });
 panel.hidden = true;
 const EXTRAS = { rupture: extraRupture, photo: extraPhoto, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
@@ -1083,11 +1107,12 @@ statusEl = h('div', { id: 'status', role: 'status', 'aria-live': 'polite' });
 panel.appendChild(statusEl);
 document.body.appendChild(panel);
 document.body.appendChild(corner);
+document.body.appendChild(fsBtn);
 function setPanel(open) {
   panel.hidden = !open;
   corner.setAttribute('aria-expanded', String(open));
   corner.setAttribute('aria-label', open ? 'Hide controls' : 'Show controls');
-  if (!open && kiosk) corner.hidden = true;
+  if (!open && kiosk) { corner.hidden = true; fsBtn.hidden = true; }
 }
 corner.addEventListener('click', () => setPanel(panel.hidden));
 
@@ -1097,7 +1122,8 @@ window.addEventListener('keydown', e => {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.code === 'Space' && tag !== 'BUTTON') { e.preventDefault(); setPaused(!paused); }
   else if (e.key === 'Escape') setPanel(false);
-  else if (e.key === 'c' || e.key === 'C') { corner.hidden = !corner.hidden; if (corner.hidden) setPanel(false); }
+  else if (e.key === 'c' || e.key === 'C') { corner.hidden = !corner.hidden; fsBtn.hidden = corner.hidden; if (corner.hidden) setPanel(false); }
+  else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
   else if (e.key === 'r' || e.key === 'R') randomize();
   else if (e.key === 'ArrowRight') showPhoto(photoIdx + 1);
   else if (e.key === 'ArrowLeft') showPhoto(photoIdx - 1);
