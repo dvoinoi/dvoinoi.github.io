@@ -90,6 +90,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .check { display: flex; align-items: center; gap: 8px; color: var(--ash); font-size: 10px; cursor: pointer; }
 .check input { accent-color: var(--bone); margin: 0; }
 #status { min-height: 14px; padding: 8px 12px 10px; border-top: 1px solid var(--rule); color: var(--ash); font-size: 10px; }
+#hint {
+  position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  color: var(--bone); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  pointer-events: none; mix-blend-mode: difference; opacity: .7; white-space: nowrap;
+}
 .fail { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding-inline: 24px; color: var(--ash); line-height: 1.7; }
 @media (prefers-reduced-motion: reduce) { #corner polygon, #fs polygon { transition: none; } }
 </style>
@@ -177,10 +182,14 @@ const SCHEMA = [
   ['Audio', false, [
     ['audioGain', 'Gain', 0, 4, 0.01], ['audioDrive', 'Drive', 0, 1, 0.01], ['beats', 'Beat hits', 'tog'],
   ], 'audio'],
+  ['Second screen', false, [], 'screen'],
   ['Presets & export', false, [], 'presets'],
 ];
 
 const P = Object.assign({}, BASE);
+const APP = 'static-ash';
+const MODE_OUTPUT = location.hash === '#output';   // the second-screen window: visual only
+let ready = !MODE_OUTPUT;                            // the output waits briefly to hear from a control window
 const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const motionMul = reduced ? 0.3 : 1;
 
@@ -532,7 +541,10 @@ function makeTex(unit, w, h, data, repeat) {
 }
 // texture units: 0 noise, 1 previous frame, 2 photo A, 3 photo B, 4 scene for output, 5 scratch
 const rnd = new Uint8Array(256 * 256 * 4);
-for (let i = 0; i < rnd.length; i++) rnd[i] = (Math.random() * 256) | 0;
+// seeded, so a second-screen window builds exactly the same noise
+let seed = 0x9e3779b9;
+const srand = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+for (let i = 0; i < rnd.length; i++) rnd[i] = (srand() * 256) | 0;
 makeTex(0, 256, 256, rnd, true);
 let photoTexA = makeTex(2, 1, 1, new Uint8Array([0, 0, 0, 255]));
 let photoTexB = makeTex(3, 1, 1, new Uint8Array([0, 0, 0, 255]));
@@ -597,6 +609,10 @@ let down = false, pressType = 0, lastSmear = 0, lastPos = [0, 0];
 const armed = [];
 function runArmed() { armed.splice(0).forEach(f => { try { f(); } catch (e) {} }); }
 canvas.addEventListener('pointerdown', e => {
+  if (MODE_OUTPUT) {
+    if (!fsEl()) { toggleFullscreen(); return; }
+    if (slave) { const [x, y] = toField(e.clientX, e.clientY); postUp({ app: APP, type: 'tap', x, y }); return; }
+  }
   down = true;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   const [x, y] = toField(e.clientX, e.clientY);
@@ -622,8 +638,20 @@ canvas.addEventListener('pointercancel', lift);
 /* =========================================================================
    Photos
    ========================================================================= */
-const photos = [];   // {canvas, aspect, src}
-let photoIdx = -1, aspectA = 1, aspectB = 1, photoTrans = null, lastPhotoSwitch = 0;
+const photos = [];          // this window's photos, in order: {id, canvas, aspect, src}
+const photoStore = new Map(); // every image this window can draw, by id (remote ones are 'r' + id)
+let photoSeq = 1, photoIdx = -1, curA = null, curB = null, photoTrans = null, lastPhotoSwitch = 0;
+let texIdA = null, texIdB = null;
+function syncTex(idA, idB) {
+  if (idA != null && idA !== texIdA && idA === texIdB) {
+    const t = photoTexA; photoTexA = photoTexB; photoTexB = t;
+    texIdB = texIdA; texIdA = idA;
+  }
+  if (idA != null && idA !== 'v' && idA !== texIdA) { const ph = photoStore.get(idA); if (ph) { upload(photoTexA, 2, ph.canvas); texIdA = idA; } }
+  if (idB != null && idB !== texIdB) { const ph = photoStore.get(idB); if (ph) { upload(photoTexB, 3, ph.canvas); texIdB = idB; } }
+}
+function aspectOf(id) { const ph = id != null && photoStore.get(id); return ph ? ph.aspect : 1; }
+function registerPhoto(ph) { ph.id = photoSeq++; photos.push(ph); photoStore.set(ph.id, ph); sendPhoto(ph); }
 function upload(tex, unit, img) {
   gl.activeTexture(gl.TEXTURE0 + unit);
   gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -655,7 +683,7 @@ async function addPhotoFiles(files) {
   if (vid) removeVideo();   // photos or video, never both
   for (const f of list) {
     const url = URL.createObjectURL(f);
-    try { photos.push(imageToPhoto(await loadImage(url))); } catch (e) { status(e.message); }
+    try { registerPhoto(imageToPhoto(await loadImage(url))); } catch (e) { status(e.message); }
     URL.revokeObjectURL(url);
   }
   showPhoto(photos.length - list.length);
@@ -665,7 +693,7 @@ async function addPhotoFiles(files) {
 async function addPhotoUrls(urls) {
   if (vid) removeVideo();
   for (const u of urls) {
-    try { photos.push(imageToPhoto(await loadImage(u), /^data:/.test(u) ? null : u)); }
+    try { registerPhoto(imageToPhoto(await loadImage(u), /^data:/.test(u) ? null : u)); }
     catch (e) { status(e.message); }
   }
   if (photos.length) showPhoto(0);
@@ -675,27 +703,31 @@ function showPhoto(i) {
   if (!photos.length) return;
   i = ((i % photos.length) + photos.length) % photos.length;
   if (vid) { photoIdx = i; photoUI(); return; }   // a loaded video takes the place of photos
-  const ph = photos[i];
-  if (photoIdx < 0) {
-    upload(photoTexA, 2, ph.canvas); aspectA = ph.aspect;
-  } else {
-    upload(photoTexB, 3, ph.canvas); aspectB = ph.aspect;
+  const id = photos[i].id;
+  if (curA == null) curA = id;
+  else if (id !== curA) {
+    curB = id;
     photoTrans = { start: clock() };
     rupture(0, 0, 1.2, 1, 0.3);
   }
   photoIdx = i;
   lastPhotoSwitch = clock();
 }
-function clearPhotos() { photos.length = 0; photoIdx = -1; photoTrans = null; photoUI(); }
+function clearPhotos() {
+  photos.forEach(ph => photoStore.delete(ph.id));
+  photos.length = 0; photoIdx = -1; curA = curB = null; photoTrans = null;
+  photoUI();
+  if (!MODE_OUTPUT) postDown({ app: APP, type: 'clearPhotos' });
+}
 
 /* =========================================================================
    Video
    ========================================================================= */
-let vid = null, vidReady = false, vidUrl = null, vidObjUrl = null, vidFrameNew = true, vidRVFC = false;
+let vid = null, vidReady = false, vidUrl = null, vidObjUrl = null, vidFrameNew = true, vidRVFC = false, vidToken = 0, vidSrcBlob = null;
 let vidDir = 1, vidNextJump = 0, stut = null, vidNode = null, vidGain = null, vidNoteEl = null;
 const userActive = () => !navigator.userActivation || navigator.userActivation.hasBeenActive;
 function whenActive(fn) { if (userActive()) fn(); else armed.push(fn); }
-function loadVideo(url, label) {
+function loadVideo(url, label, blob) {
   removeVideo(true);
   clearPhotos();   // photos or video, never both
   const v = document.createElement('video');
@@ -717,8 +749,9 @@ function loadVideo(url, label) {
   });
   vidRVFC = 'requestVideoFrameCallback' in v;
   if (vidRVFC) { const cb = () => { vidFrameNew = true; if (vid === v) v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
-  vid = v; vidUrl = url;
+  vid = v; vidUrl = url; vidSrcBlob = blob || null; vidToken++;
   document.body.appendChild(v);
+  sendVideo();
   v.src = url;
   const p = v.play();
   if (p && p.catch) p.catch(() => armed.push(() => v.play().catch(() => {})));
@@ -727,16 +760,16 @@ function loadVideo(url, label) {
 }
 function loadVideoFile(f) {
   const url = URL.createObjectURL(f);
-  loadVideo(url, f.name);
+  loadVideo(url, f.name, f);
   vidObjUrl = url;
 }
 function removeVideo(quiet) {
   if (vid) { try { vid.pause(); vid.removeAttribute('src'); vid.load(); } catch (e) {} vid.remove(); }
   if (vidNode) { try { vidNode.disconnect(); vidGain.disconnect(); } catch (e) {} }
   if (vidObjUrl) URL.revokeObjectURL(vidObjUrl);
-  vid = null; vidReady = false; vidUrl = null; vidObjUrl = null; vidNode = null; vidGain = null;
+  vid = null; vidReady = false; vidUrl = null; vidObjUrl = null; vidNode = null; vidGain = null; vidSrcBlob = null;
   if (typeof au !== 'undefined') au.vActive = false;
-  if (photoIdx >= 0 && photos[photoIdx]) { upload(photoTexA, 2, photos[photoIdx].canvas); aspectA = photos[photoIdx].aspect; }
+  if (texIdA === 'v') texIdA = null;   // the photo texture held video frames: refill it
   if (!quiet) { videoUI(); audioUI(); }
 }
 async function routeVideoAudio() {
@@ -938,6 +971,7 @@ function readSaved() { try { return JSON.parse(localStorage.getItem(LS_PRESETS) 
 function writeSaved(o) { try { localStorage.setItem(LS_PRESETS, JSON.stringify(o)); return true; } catch (e) { return false; } }
 let sessionTimer = 0;
 function saveSession() {
+  if (MODE_OUTPUT) return;
   clearTimeout(sessionTimer);
   sessionTimer = setTimeout(() => { try { localStorage.setItem(LS_SESSION, JSON.stringify(P)); } catch (e) {} }, 400);
 }
@@ -967,7 +1001,7 @@ async function applyPreset(pr, opts) {
   applyParams(pr.params || {});
   if (typeof pr.kiosk === 'boolean' && opts && opts.boot) setKiosk(pr.kiosk);
   if (Array.isArray(pr.photos) && pr.photos.length) { clearPhotos(); await addPhotoUrls(pr.photos.filter(s => typeof s === 'string')); }
-  if (typeof pr.audio === 'string' && pr.audio) { audioUrl = pr.audio; loadAudioUrl(pr.audio); }
+  if (!MODE_OUTPUT && typeof pr.audio === 'string' && pr.audio) { audioUrl = pr.audio; loadAudioUrl(pr.audio); }
   if (typeof pr.video === 'string' && pr.video) loadVideo(pr.video, pr.video.split('/').pop());
 }
 function parsePreset(text) {
@@ -1110,6 +1144,206 @@ function extraVideo() {
     vidNoteEl,
   ]);
 }
+/* ---------- second screen ---------- */
+let outWin = null, lastPingAt = 0, preview = true, screenNoteEl = null, openBtn = null;
+let bc = null;
+try { bc = new BroadcastChannel(APP); } catch (e) {}
+const outputLive = () => performance.now() - lastPingAt < 5000;
+function postDown(m) {           // control window -> output window
+  if (MODE_OUTPUT) return;
+  if (outWin && !outWin.closed) { try { outWin.postMessage(m, '*'); return; } catch (e) {} }
+  if (bc && outputLive()) { try { bc.postMessage(m); } catch (e) {} }
+}
+function postUp(m) {             // output window -> control window
+  if (window.opener && !window.opener.closed) { try { window.opener.postMessage(m, '*'); return; } catch (e) {} }
+  if (bc) { try { bc.postMessage(m); } catch (e) {} }
+}
+function photoBlob(ph) {
+  if (!ph.blobP) ph.blobP = new Promise(r => ph.canvas.toBlob(b => r(b), 'image/jpeg', 0.92));
+  return ph.blobP;
+}
+async function sendPhoto(ph) {
+  if (MODE_OUTPUT || !outputLive()) return;
+  const b = await photoBlob(ph);
+  if (b) postDown({ app: APP, type: 'photo', id: ph.id, blob: b });
+}
+function sendVideo() {
+  if (MODE_OUTPUT || !vid || !outputLive()) return;
+  postDown({ app: APP, type: 'video', token: vidToken, blob: vidSrcBlob, url: vidSrcBlob ? null : vidUrl });
+}
+function sendAll() { photos.forEach(sendPhoto); sendVideo(); }
+function screenUI() {
+  if (!screenNoteEl) return;
+  if (outputLive()) screenNoteEl.textContent = 'Output window connected. Click it once to fill that screen.' + (preview ? '' : ' The preview here is off to save power.');
+  else if (outWin && !outWin.closed) screenNoteEl.textContent = 'Output window opening…';
+  else screenNoteEl.textContent = 'Opens a second window with only the visual, on your other screen when the browser allows it. Click that window once to fill the screen. Works best in Chrome or Edge.';
+}
+async function queryWM() {
+  for (const name of ['window-management', 'window-placement']) {
+    try { return (await navigator.permissions.query({ name })).state; } catch (e) {}
+  }
+  return 'unsupported';
+}
+async function otherScreen() {
+  try {
+    const d = await window.getScreenDetails();
+    return d.screens.find(sc => sc !== d.currentScreen) || null;
+  } catch (e) { return null; }
+}
+async function openOutput() {
+  if (outWin && !outWin.closed) { try { outWin.focus(); } catch (e) {} return; }
+  const url = location.href.split('#')[0] + '#output';
+  const hasWM = 'getScreenDetails' in window;
+  let target = null;
+  if (hasWM && (await queryWM()) === 'granted') target = await otherScreen();
+  const feat = target
+    ? 'popup,left=' + target.availLeft + ',top=' + target.availTop + ',width=' + target.availWidth + ',height=' + target.availHeight + ',fullscreen'
+    : 'popup,left=60,top=60,width=960,height=540';
+  try { outWin = window.open(url, 'static-ash-output', feat); } catch (e) { outWin = null; }
+  if (!outWin) {
+    status('');
+    screenNoteEl.textContent = window.top !== window
+      ? 'Pop-up windows are blocked inside Claude. Use Presets & export → Download page .html, open that file in Chrome or Edge, and press this button there.'
+      : 'The browser blocked the pop-up. Allow pop-ups for this page, then press the button again.';
+    return;
+  }
+  screenUI();
+  if (!target && hasWM) {
+    // first time: the browser asks to allow window placement, then the window moves to the other screen
+    const sc = await otherScreen();
+    if (sc && outWin && !outWin.closed) {
+      try { outWin.moveTo(sc.availLeft, sc.availTop); outWin.resizeTo(sc.availWidth, sc.availHeight); } catch (e) {}
+    } else if (!sc) status('Only one screen was found. Drag the output window to the other screen, then click it.');
+  } else if (!hasWM) status('Drag the output window to the other screen, then click it once.');
+}
+function closeOutput() {
+  if (outWin && !outWin.closed) { try { outWin.close(); } catch (e) {} }
+  outWin = null; lastPingAt = 0; screenUI();
+}
+function extraScreen() {
+  screenNoteEl = h('p', { class: 'note' });
+  const pv = h('input', { type: 'checkbox', id: 'c-preview', checked: '', onchange: () => { preview = pv.checked; screenUI(); } });
+  openBtn = h('button', { class: 'btn', type: 'button', text: 'Open output window', onclick: openOutput });
+  screenUI();
+  return h('div', { class: 'sec', style: 'padding:0;gap:8px' }, [
+    h('div', { class: 'btns' }, [openBtn, h('button', { class: 'btn', type: 'button', text: 'Close it', onclick: closeOutput })]),
+    h('label', { class: 'check' }, [pv, h('span', { text: 'Show the visual here too' })]),
+    screenNoteEl,
+  ]);
+}
+function onCtlMsg(d, src) {
+  if (MODE_OUTPUT || !d || d.app !== APP) return;
+  if (d.type === 'hello' || d.type === 'ping' || d.type === 'need') {
+    if (src && src !== window && (!outWin || outWin.closed)) outWin = src;
+    const wasLive = outputLive();
+    lastPingAt = performance.now();
+    if (d.type !== 'ping' || !wasLive) sendAll();
+    if (!wasLive) screenUI();
+  } else if (d.type === 'tap') {
+    if (isFinite(d.x) && isFinite(d.y)) rupture(+d.x, +d.y, 1, pickEffect());
+  } else if (d.type === 'bye') { lastPingAt = 0; screenUI(); }
+}
+window.addEventListener('message', e => onCtlMsg(e.data, e.source));
+if (bc) bc.addEventListener('message', e => onCtlMsg(e.data, null));
+window.addEventListener('pagehide', () => { if (!MODE_OUTPUT) postDown({ app: APP, type: 'bye' }); else postUp({ app: APP, type: 'bye' }); });
+setInterval(() => { if (!MODE_OUTPUT && lastPingAt && !outputLive()) { lastPingAt = 0; screenUI(); } }, 2500);
+
+/* ---------- the output window side ---------- */
+let slave = false, latest = null, latestP = null, latestNew = false, lastMsgAt = 0, lastNeed = 0;
+let outVid = null, outVidReady = false, outVidToken = -1, outFresh = false, outRVFC = false, outVidUrl = null;
+const pendingPhotos = new Set();
+const mapId = id => typeof id === 'number' ? 'r' + id : id;
+function needAll() {
+  if (performance.now() - lastNeed < 2000) return;
+  lastNeed = performance.now();
+  postUp({ app: APP, type: 'need' });
+}
+async function storeRemotePhoto(d) {
+  const key = 'r' + d.id;
+  if (photoStore.has(key) || pendingPhotos.has(key) || !(d.blob instanceof Blob)) return;
+  pendingPhotos.add(key);
+  const url = URL.createObjectURL(d.blob);
+  try { photoStore.set(key, imageToPhoto(await loadImage(url))); } catch (e) {}
+  URL.revokeObjectURL(url);
+  pendingPhotos.delete(key);
+}
+function dropOutVideo() {
+  if (outVid) { try { outVid.pause(); outVid.removeAttribute('src'); outVid.load(); } catch (e) {} outVid.remove(); }
+  if (outVidUrl) URL.revokeObjectURL(outVidUrl);
+  outVid = null; outVidReady = false; outVidUrl = null; outVidToken = -1;
+  if (texIdA === 'v') texIdA = null;
+}
+function loadOutVideo(d) {
+  dropOutVideo();
+  const src = d.blob instanceof Blob ? (outVidUrl = URL.createObjectURL(d.blob)) : (typeof d.url === 'string' ? d.url : null);
+  if (!src) return;
+  outVidToken = d.token;
+  const v = document.createElement('video');
+  v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+  if (!outVidUrl) v.crossOrigin = 'anonymous';
+  v.addEventListener('loadeddata', () => { if (outVid === v) { outVidReady = true; outFresh = true; } });
+  v.addEventListener('seeked', () => { outFresh = true; });
+  outRVFC = 'requestVideoFrameCallback' in v;
+  if (outRVFC) { const cb = () => { outFresh = true; if (outVid === v) v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+  outVid = v;
+  document.body.appendChild(v);
+  v.src = src;
+  v.play().catch(() => {});
+}
+function syncOutVideo(S) {
+  const sv = S && S.vid;
+  if (!sv) { if (outVid) dropOutVideo(); return; }
+  if (sv.token !== outVidToken) { needAll(); return; }
+  if (!outVid || !outVidReady || outVid.seeking) return;
+  if (sv.playing) {
+    if (outVid.paused) outVid.play().catch(() => {});
+    if (Math.abs(outVid.playbackRate - sv.rate) > 0.001) outVid.playbackRate = sv.rate;
+    // where the control window's video is right now, allowing for message delay and looping
+    const D = outVid.duration;
+    let want = sv.t + Math.max(0, Math.min(1, (Date.now() - sv.wall) / 1000)) * sv.rate;
+    let diff = outVid.currentTime - want;
+    if (isFinite(D) && D > 0) { want = ((want % D) + D) % D; diff = ((outVid.currentTime - want) % D + D) % D; diff = Math.min(diff, D - diff); }
+    if (Math.abs(diff) > 0.18) outVid.currentTime = want + 0.03;
+  } else {
+    if (!outVid.paused) outVid.pause();
+    if (Math.abs(outVid.currentTime - sv.t) > 0.02) outVid.currentTime = sv.t;
+  }
+}
+function enterSlave() {
+  slave = true; ready = true;
+  removeVideo(true);
+  calm();
+}
+function goSolo() {
+  // the control window went quiet: keep going on our own from where it left off
+  slave = false;
+  if (latest) {
+    fieldCur = latest.fieldMix > 0.5 ? latest.field2 : latest.field; fieldTrans = null;
+    const a = mapId(latest.idA);
+    curA = a === 'v' ? null : a; curB = null; photoTrans = null;
+  }
+  dropOutVideo();
+  calm();
+  ready = true;
+}
+function onOutMsg(d) {
+  if (!MODE_OUTPUT || !d || d.app !== APP) return;
+  if (d.type === 'state' && d.S) {
+    if (!slave) enterSlave();
+    latest = d.S; latestP = d.P; latestNew = true; lastMsgAt = performance.now();
+  } else if (d.type === 'photo') storeRemotePhoto(d);
+  else if (d.type === 'clearPhotos') { [...photoStore.keys()].forEach(k => { if (typeof k === 'string' && k[0] === 'r') photoStore.delete(k); }); }
+  else if (d.type === 'video') { if (d.token !== outVidToken) loadOutVideo(d); }
+  else if (d.type === 'bye') lastMsgAt = 0;
+}
+if (MODE_OUTPUT) {
+  window.addEventListener('message', e => { if (!window.opener || e.source === window.opener) onOutMsg(e.data); });
+  if (bc) bc.addEventListener('message', e => onOutMsg(e.data));
+  setInterval(() => postUp({ app: APP, type: 'ping' }), 2000);
+}
+
 function audioUI() {
   if (audioStateEl) audioStateEl.textContent = au.kind === 'mic' ? 'Microphone on' : au.kind === 'file' ? 'Audio file playing' : au.vActive ? 'Reacting to the video sound' : 'Audio off';
 }
@@ -1145,6 +1379,7 @@ function refreshPresetList(selectName) {
 let includePhotos = null, kioskBox = null;
 function setKiosk(on) {
   kiosk = !!on;
+  if (MODE_OUTPUT) return;
   if (kioskBox) kioskBox.checked = kiosk;
   corner.hidden = kiosk && panel.hidden;
   fsBtn.hidden = corner.hidden;
@@ -1253,7 +1488,7 @@ fsBtn.addEventListener('click', toggleFullscreen);
 }));
 const panel = h('div', { id: 'panel', role: 'region', 'aria-label': 'Controls' });
 panel.hidden = true;
-const EXTRAS = { rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
+const EXTRAS = { screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
 SCHEMA.forEach(([title, open, specs, extra]) => {
   const sec = h('div', { class: 'sec' });
   const top = extra === 'photo' || extra === 'audio' || extra === 'video';
@@ -1270,17 +1505,34 @@ document.body.appendChild(panel);
 document.body.appendChild(corner);
 document.body.appendChild(fsBtn);
 function setPanel(open) {
+  if (MODE_OUTPUT) return;
   panel.hidden = !open;
   corner.setAttribute('aria-expanded', String(open));
   corner.setAttribute('aria-label', open ? 'Hide controls' : 'Show controls');
   if (!open && kiosk) { corner.hidden = true; fsBtn.hidden = true; }
 }
 corner.addEventListener('click', () => setPanel(panel.hidden));
+if (MODE_OUTPUT) {
+  corner.hidden = true; fsBtn.hidden = true; panel.hidden = true;
+  const hint = h('div', { id: 'hint', text: 'Click to fill this screen' });
+  document.body.appendChild(hint);
+  let idleT = 0;
+  const wake = () => {
+    document.body.classList.remove('nocursor');
+    hint.hidden = !!fsEl();
+    clearTimeout(idleT);
+    idleT = setTimeout(() => { document.body.classList.add('nocursor'); hint.hidden = true; }, 2500);
+  };
+  window.addEventListener('pointermove', wake);
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, wake));
+  wake();
+}
 
 /* ---------- keyboard, drop, paste ---------- */
 window.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
   runArmed();
+  if (MODE_OUTPUT) { if (e.key === 'f' || e.key === 'F') toggleFullscreen(); return; }
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.key === 'j' || e.key === 'J') vidJump();
   if (e.code === 'Space' && tag !== 'BUTTON') { e.preventDefault(); setPaused(!paused); }
@@ -1294,6 +1546,7 @@ window.addEventListener('keydown', e => {
 window.addEventListener('dragover', e => e.preventDefault());
 window.addEventListener('drop', async e => {
   e.preventDefault();
+  if (MODE_OUTPUT) return;
   const files = e.dataTransfer ? [...e.dataTransfer.files] : [];
   const imgs = files.filter(f => /^image\//.test(f.type));
   if (imgs.length) addPhotoFiles(imgs);
@@ -1305,6 +1558,7 @@ window.addEventListener('drop', async e => {
   if (js) { try { await applyPreset(parsePreset(await js.text())); status('Loaded ' + js.name); } catch (err) { status(err.message); } }
 });
 window.addEventListener('paste', e => {
+  if (MODE_OUTPUT) return;
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA') return;
   const items = e.clipboardData ? [...e.clipboardData.items] : [];
@@ -1320,6 +1574,11 @@ window.addEventListener('paste', e => {
 Object.keys(BASE).forEach(k => controls[k] && controls[k].set(P[k]));
 resize();
 (async function boot() {
+  if (MODE_OUTPUT) {
+    postUp({ app: APP, type: 'hello' });
+    await new Promise(r => setTimeout(r, 1500));
+    if (slave) return;          // a control window is driving this one
+  }
   let embedded = null;
   const el = document.getElementById('ash-preset');
   if (el && el.textContent.trim()) { try { embedded = parsePreset(el.textContent); } catch (e) { console.warn('Embedded preset could not be read', e); } }
@@ -1330,16 +1589,15 @@ resize();
     applyParams(s || {});
   }
   fieldCur = P.field; fieldTrans = null;
+  ready = true;
   setTimeout(() => rupture(0.03, -0.02, 1, pickEffect()), 500);
 })();
 
 /* =========================================================================
-   Frame loop
+   Frame loop: compute the state, render it, and hand it to the output window
    ========================================================================= */
 let last = performance.now(), simTime = 0, zPhase = 0, spinAngle = 0, lastShuffle = 0;
-function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  const c = clock();
+function computeState(c, dt) {
   updateAudio(c);
 
   // evolve: slow, independent drifts around your settings
@@ -1365,17 +1623,8 @@ function frame(now) {
     if (photos.length > 1 && P.photoCycle > 0 && !photoTrans && !vid && c - lastPhotoSwitch > P.photoCycle) showPhoto(photoIdx + 1);
   } else { lastShuffle = c; lastPhotoSwitch = Math.max(lastPhotoSwitch, c - P.photoCycle + 1); }
 
-  // video: run the playback mode, then copy the newest frame into the photo texture
   updateVideo(c, dt);
-  if (vid && vidReady && vid.readyState >= 2 && (vidFrameNew || !vidRVFC)) {
-    try {
-      upload(photoTexA, 2, vid);
-      aspectA = (vid.videoWidth || 16) / (vid.videoHeight || 9);
-    } catch (e) { status('This video is blocked from being used as an image by the site that hosts it.'); removeVideo(); }
-    vidFrameNew = false;
-  }
 
-  // transitions
   let fieldMix = 0;
   if (fieldTrans) {
     fieldMix = Math.min(1, (c - fieldTrans.start) / 1.6);
@@ -1384,12 +1633,26 @@ function frame(now) {
   let photoMix = 0;
   if (photoTrans) {
     photoMix = Math.min(1, (c - photoTrans.start) / 1.4);
-    if (photoMix >= 1) {
-      const t = photoTexA; photoTexA = photoTexB; photoTexB = t;
-      aspectA = aspectB; photoTrans = null; photoMix = 0;
-      photoUI();
-    }
+    if (photoMix >= 1) { curA = curB; curB = null; photoTrans = null; photoMix = 0; photoUI(); }
   }
+
+  return {
+    c, simTime, zPhase, spinAngle,
+    driftOn: Math.abs(zPhase - Math.round(zPhase)) > 0.0005 || driftRate !== 0 ? 1 : 0,
+    sym: P.symmetry, field: fieldCur, field2: fieldTrans ? fieldTrans.to : fieldCur, fieldMix,
+    scale, warp, pattern: P.pattern, patSize, patMix: P.patMix, patAngle,
+    glitch: Math.min(1, P.glitch + au.treble * drive * 0.6), jitter: au.treble * drive * 1.5,
+    hasPhoto: (curA != null || vidReady) ? 1 : 0, idA: vidReady ? 'v' : curA, idB: vidReady ? null : curB, photoMix,
+    haze: P.haze, blend: P.blend, memory: P.memory, contrast, level: P.level,
+    echo: P.echo, echoMode: P.echoMode, echoZoom, echoSpin: P.echoSpin,
+    ripA, ripB, depth: P.depth, dither: P.dither, invert: P.invert, tint: P.tint,
+    vid: vid ? { token: vidToken, t: vid.currentTime, playing: !vid.paused && !vid.seeking, rate: vid.playbackRate, wall: Date.now() } : null,
+  };
+}
+
+function render(S, idA, idB, vAspect) {
+  syncTex(idA === 'v' ? null : idA, idB);
+  const aA = idA === 'v' ? vAspect : aspectOf(idA), aB = aspectOf(idB);
 
   // scene pass
   const prev = targets[1 - cur], next = targets[cur];
@@ -1401,38 +1664,38 @@ function frame(now) {
   gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, photoTexB);
   gl.uniform1i(US.uNoise, 0); gl.uniform1i(US.uPrev, 1); gl.uniform1i(US.uPhotoA, 2); gl.uniform1i(US.uPhotoB, 3);
   gl.uniform2f(US.uRes, sceneW, sceneH);
-  gl.uniform1f(US.uTime, simTime);
-  gl.uniform1f(US.uClock, c);
-  gl.uniform1f(US.uZ, zPhase);
-  gl.uniform1f(US.uDriftOn, Math.abs(zPhase - Math.round(zPhase)) > 0.0005 || driftRate !== 0 ? 1 : 0);
-  gl.uniform1f(US.uSpinAngle, spinAngle);
-  gl.uniform1f(US.uSym, P.symmetry);
-  gl.uniform1f(US.uField, fieldCur);
-  gl.uniform1f(US.uField2, fieldTrans ? fieldTrans.to : fieldCur);
-  gl.uniform1f(US.uFieldMix, fieldMix);
-  gl.uniform1f(US.uScale, scale);
-  gl.uniform1f(US.uWarp, warp);
-  gl.uniform1f(US.uPattern, P.pattern);
-  gl.uniform1f(US.uPatSize, patSize);
-  gl.uniform1f(US.uPatMix, P.patMix);
-  gl.uniform1f(US.uPatAngle, patAngle);
-  gl.uniform1f(US.uGlitch, Math.min(1, P.glitch + au.treble * drive * 0.6));
-  gl.uniform1f(US.uJitter, au.treble * drive * 1.5);
-  gl.uniform1f(US.uHasPhoto, (photoIdx >= 0 || vidReady) ? 1 : 0);
-  gl.uniform1f(US.uAspectA, aspectA);
-  gl.uniform1f(US.uAspectB, aspectB);
-  gl.uniform1f(US.uPhotoMix, photoMix);
-  gl.uniform1f(US.uHaze, P.haze);
-  gl.uniform1f(US.uBlend, P.blend);
-  gl.uniform1f(US.uMemory, P.memory);
-  gl.uniform1f(US.uContrast, contrast);
-  gl.uniform1f(US.uLevel, P.level);
-  gl.uniform1f(US.uEcho, P.echo);
-  gl.uniform1f(US.uEchoMode, P.echoMode);
-  gl.uniform1f(US.uEchoZoom, echoZoom);
-  gl.uniform1f(US.uEchoSpin, P.echoSpin);
-  gl.uniform4fv(US.uRipA, ripA);
-  gl.uniform4fv(US.uRipB, ripB);
+  gl.uniform1f(US.uTime, S.simTime);
+  gl.uniform1f(US.uClock, S.c);
+  gl.uniform1f(US.uZ, S.zPhase);
+  gl.uniform1f(US.uDriftOn, S.driftOn);
+  gl.uniform1f(US.uSpinAngle, S.spinAngle);
+  gl.uniform1f(US.uSym, S.sym);
+  gl.uniform1f(US.uField, S.field);
+  gl.uniform1f(US.uField2, S.field2);
+  gl.uniform1f(US.uFieldMix, S.fieldMix);
+  gl.uniform1f(US.uScale, S.scale);
+  gl.uniform1f(US.uWarp, S.warp);
+  gl.uniform1f(US.uPattern, S.pattern);
+  gl.uniform1f(US.uPatSize, S.patSize);
+  gl.uniform1f(US.uPatMix, S.patMix);
+  gl.uniform1f(US.uPatAngle, S.patAngle);
+  gl.uniform1f(US.uGlitch, S.glitch);
+  gl.uniform1f(US.uJitter, S.jitter);
+  gl.uniform1f(US.uHasPhoto, S.hasPhoto);
+  gl.uniform1f(US.uAspectA, aA);
+  gl.uniform1f(US.uAspectB, aB);
+  gl.uniform1f(US.uPhotoMix, S.photoMix);
+  gl.uniform1f(US.uHaze, S.haze);
+  gl.uniform1f(US.uBlend, S.blend);
+  gl.uniform1f(US.uMemory, S.memory);
+  gl.uniform1f(US.uContrast, S.contrast);
+  gl.uniform1f(US.uLevel, S.level);
+  gl.uniform1f(US.uEcho, S.echo);
+  gl.uniform1f(US.uEchoMode, S.echoMode);
+  gl.uniform1f(US.uEchoZoom, S.echoZoom);
+  gl.uniform1f(US.uEchoSpin, S.echoSpin);
+  gl.uniform4fv(US.uRipA, S.ripA);
+  gl.uniform4fv(US.uRipB, S.ripB);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   // output pass: bit depth, dither, tint
@@ -1443,15 +1706,59 @@ function frame(now) {
   gl.uniform1i(UO.uScene, 4);
   gl.uniform2f(UO.uSceneRes, sceneW, sceneH);
   gl.uniform1f(UO.uPix, pixOut);
-  gl.uniform1f(UO.uLevels, LEVELS[P.depth]);
-  gl.uniform1f(UO.uDither, P.dither);
-  gl.uniform1f(UO.uInvert, P.invert);
-  const tint = TINTS[P.tint] || TINTS[0];
+  gl.uniform1f(UO.uLevels, LEVELS[S.depth] || 0);
+  gl.uniform1f(UO.uDither, S.dither);
+  gl.uniform1f(UO.uInvert, S.invert);
+  const tint = TINTS[S.tint] || TINTS[0];
   gl.uniform3fv(UO.uDark, tint[0]);
   gl.uniform3fv(UO.uLight, tint[1]);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   cur = 1 - cur;
+}
 
+function outFrame() {
+  if (performance.now() - lastMsgAt > 4000) { goSolo(); return; }
+  syncOutVideo(latest);
+  if (!latestNew || !latest) return;     // render only new states, so echo matches the control window
+  latestNew = false;
+  const S = latest;
+  if (latestP) { const px = P.pixel; Object.assign(P, latestP); if (P.pixel !== px) resize(); }
+  simTime = S.simTime; zPhase = S.zPhase; spinAngle = S.spinAngle;
+  const idA = mapId(S.idA), idB = mapId(S.idB);
+  if ((idA != null && idA !== 'v' && !photoStore.has(idA)) || (idB != null && !photoStore.has(idB))) needAll();
+  if (idA === 'v' && outVid && outVidReady && outVid.readyState >= 2 && (outFresh || !outRVFC)) {
+    try { upload(photoTexA, 2, outVid); texIdA = 'v'; } catch (e) {}
+    outFresh = false;
+  }
+  render(S, idA, idB, outVid && outVid.videoWidth ? outVid.videoWidth / outVid.videoHeight : 16 / 9);
+}
+
+let blanked = false;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (MODE_OUTPUT && slave) outFrame();
+  else if (ready) {
+    const S = computeState(clock(), dt);
+    // newest video frame into the photo texture
+    if (vid && vidReady && vid.readyState >= 2 && (vidFrameNew || !vidRVFC)) {
+      try { upload(photoTexA, 2, vid); texIdA = 'v'; }
+      catch (e) { status('This video is blocked from being used as an image by the site that hosts it.'); removeVideo(); }
+      vidFrameNew = false;
+    }
+    const live = !MODE_OUTPUT && outputLive();
+    if (live) postDown({ app: APP, type: 'state', S, P });
+    if (live && !preview) {
+      if (!blanked) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+        blanked = true;
+      }
+    } else {
+      blanked = false;
+      render(S, S.idA, S.idB, vid && vid.videoWidth ? vid.videoWidth / vid.videoHeight : 16 / 9);
+    }
+  }
   if (snapPending) {
     snapPending = false;
     canvas.toBlob(b => { if (b) saveFile('static-ash-' + Date.now() + '.png', b); }, 'image/png');
