@@ -84,6 +84,14 @@ textarea { height: 92px; resize: vertical; font-size: 10px; line-height: 1.4; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 1px solid var(--bone); outline-offset: 2px; }
 .filebtn { position: relative; display: inline-block; }
 .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.crow { display: grid; grid-template-columns: 78px 30px minmax(0, 1fr) 38px; align-items: center; gap: 8px; }
+.crow label { color: var(--ash); font-size: 10px; }
+.crow.head { margin-bottom: -4px; }
+.crow.head .lbl { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+input[type="color"].swatch { -webkit-appearance: none; appearance: none; width: 30px; height: 20px; padding: 0; border: 1px solid var(--rule); background: transparent; cursor: pointer; }
+input[type="color"].swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+input[type="color"].swatch::-webkit-color-swatch { border: 0; }
+input[type="color"].swatch::-moz-color-swatch { border: 0; }
 .note { color: var(--ash); font-size: 10px; line-height: 1.5; margin: 0; }
 .meter { height: 3px; background: var(--rule); position: relative; }
 .meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--bone); }
@@ -117,6 +125,8 @@ const OPTS = {
   dither: ['Bayer', 'Noise', 'Lines', 'Hard'],
   tint: ['Bone', 'Pure', 'Phosphor', 'Amber', 'Cyanotype', 'Blood', 'Paper'],
   echoMode: ['Smear', 'Trails', 'Burn'],
+  colors: ['Off: black & white', '1 color', '2 colors', '3 colors'],
+  colorMatch: ['Auto', 'Brightness', 'Photo / video color'],
   blend: ['Multiply', 'Screen', 'Difference', 'Overlay'],
   vidMode: ['Play', 'Loop range', 'Random jumps', 'Stutter', 'Bounce', 'Random stills'],
   vidSound: ['Muted', 'React silently', 'React + play sound'],
@@ -141,6 +151,7 @@ const BASE = {
   vidMode: 0, vidSpeed: 1, vidStart: 0, vidLength: 1, vidJump: 2, vidStutter: 0.25, vidSound: 0,
   autoRupture: 6, evolve: 0.3, shuffle: 0,
   audioGain: 1, audioDrive: 0.6, beats: 1,
+  colors: 0, colorMatch: 0, col1: 0xE0322B, col2: 0x2F6BFF, col3: 0xF2C14E, thr1: 0.45, thr2: 0.6, thr3: 0.75,
 };
 const BUILTIN = [
   { name: 'Static Ash', params: {} },
@@ -169,6 +180,9 @@ const SCHEMA = [
     ['contrast', 'Contrast', 0.5, 3, 0.01], ['level', 'Level', -0.5, 0.5, 0.01], ['invert', 'Invert', 'tog'], ['tint', 'Tint', 'sel'],
     ['echo', 'Echo', 0, 0.97, 0.01], ['echoMode', 'Echo mode', 'sel'], ['echoZoom', 'Echo zoom', -1, 1, 0.01], ['echoSpin', 'Echo spin', -1, 1, 0.01],
   ]],
+  ['Color', false, [
+    ['colors', 'Color through', 'sel'], ['colorMatch', 'Match', 'sel'],
+  ], 'color'],
   ['Photo', false, [
     ['haze', 'Haze', 0, 1, 0.01], ['blend', 'Blend', 'sel'], ['photoCycle', 'Cycle (s)', 0, 60, 1],
   ], 'photo'],
@@ -228,6 +242,9 @@ uniform float uPattern, uPatSize, uPatMix, uPatAngle, uGlitch, uJitter;
 uniform float uHasPhoto, uAspectA, uAspectB, uPhotoMix, uHaze, uBlend;
 uniform float uMemory, uContrast, uLevel;
 uniform float uEcho, uEchoMode, uEchoZoom, uEchoSpin;
+uniform float uColN, uKey;
+uniform vec3 uCol[3];
+uniform float uThr[3];
 uniform vec4 uRipA[NR];
 uniform vec4 uRipB[NR];
 
@@ -327,6 +344,9 @@ vec2 cover(vec2 p, float ia){
   return 1.0 - abs(1.0 - mod(st, 2.0));
 }
 float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+vec3 yuv(vec3 c){ return vec3(lum(c), dot(c, vec3(-0.147, -0.289, 0.436)), dot(c, vec3(0.615, -0.515, -0.100))); }
+// colour distance that cares mostly about hue and saturation, a little about brightness
+float cdist(vec3 a, vec3 b){ vec3 d = yuv(a) - yuv(b); return length(d * vec3(0.45, 1.6, 1.6)); }
 
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
@@ -403,10 +423,12 @@ void main(){
 
   /* ---------- photo, with the field as haze ---------- */
   float base = h;
+  vec3 srcRGB = vec3(h);
   if (uHasPhoto > 0.5){
     vec2 pc = pf + (h - 0.4) * 0.06 * uHaze * uWarp;
-    float L = lum(texture2D(uPhotoA, cover(pc, uAspectA)).rgb);
-    if (uPhotoMix > 0.001) L = mix(L, lum(texture2D(uPhotoB, cover(pc, uAspectB)).rgb), uPhotoMix);
+    srcRGB = texture2D(uPhotoA, cover(pc, uAspectA)).rgb;
+    if (uPhotoMix > 0.001) srcRGB = mix(srcRGB, texture2D(uPhotoB, cover(pc, uAspectB)).rgb, uPhotoMix);
+    float L = lum(srcRGB);
     float hz;
     if (uBlend < 0.5) hz = L * (0.3 + 1.4 * h);
     else if (uBlend < 1.5) hz = 1.0 - (1.0 - L) * (1.0 - h);
@@ -448,6 +470,26 @@ void main(){
   }
   v = clamp(v + flash * 0.55, 0.0, 1.0);
 
+  /* ---------- color through: which picked color (if any) shows here ---------- */
+  float mStr = 0.0, mIdx = 0.0;
+  if (uColN > 0.5){
+    bool bySource = uKey > 1.5 || (uKey < 0.5 && uHasPhoto > 0.5);
+    float bestThr = -1.0;
+    for (int i = 0; i < 3; i++){
+      if (float(i) >= uColN) break;
+      float t = uThr[i];
+      if (bySource){
+        // threshold = tolerance: how close a photo/video color must be to the picked one
+        float m = 1.0 - smoothstep(t * 0.6, t * 0.6 + 0.06, cdist(srcRGB, uCol[i]));
+        if (m > mStr){ mStr = m; mIdx = float(i); }
+      } else {
+        // threshold = brightness: tones above it take this color; the highest passed threshold wins
+        float m = smoothstep(t - 0.025, t + 0.025, base);
+        if (m > 0.5 && t > bestThr){ bestThr = t; mStr = m; mIdx = float(i); }
+      }
+    }
+  }
+
   /* ---------- echo feedback ---------- */
   if (uEcho > 0.001){
     float A = uRes.x / uRes.y;
@@ -460,7 +502,7 @@ void main(){
     else if (uEchoMode < 1.5) v = max(v, prev * uEcho - 0.004);
     else v = min(v, 1.0 - (1.0 - prev) * uEcho + 0.004);
   }
-  gl_FragColor = vec4(v, v, v, 1.0);
+  gl_FragColor = vec4(v, mStr, mIdx * 0.5, 1.0);
 }`;
 
 const OUT_FS = COMMON + `
@@ -468,21 +510,31 @@ uniform sampler2D uScene;
 uniform vec2 uSceneRes;
 uniform float uPix, uLevels, uDither, uInvert;
 uniform vec3 uDark, uLight;
+uniform float uColN;
+uniform vec3 uCols[3];
 void main(){
   vec2 cell = floor(gl_FragCoord.xy / uPix);
-  float v = texture2D(uScene, (min(cell, uSceneRes - 1.0) + 0.5) / uSceneRes).r;
+  vec4 sc = texture2D(uScene, (min(cell, uSceneRes - 1.0) + 0.5) / uSceneRes);
+  float v = sc.r;
   if (uInvert > 0.5) v = 1.0 - v;
+  float thr;
+  if (uDither < 0.5) thr = bayer8(cell);
+  else if (uDither < 1.5) thr = hash(cell * 0.913 + 0.37);
+  else if (uDither < 2.5) thr = (mod(cell.y, 4.0) + 0.5) / 4.0;
+  else thr = 0.5;
   if (uLevels > 1.5){
     float L = uLevels - 1.0;
     if (uLevels < 4.5) v = clamp((v - 0.18) / 0.8, 0.0, 1.0);   // low depths: shadows go solid black
-    float thr;
-    if (uDither < 0.5) thr = bayer8(cell);
-    else if (uDither < 1.5) thr = hash(cell * 0.913 + 0.37);
-    else if (uDither < 2.5) thr = (mod(cell.y, 4.0) + 0.5) / 4.0;
-    else thr = 0.5;
     v = min(floor(v * L + thr), L) / L;
   }
-  gl_FragColor = vec4(mix(uDark, uLight, v), 1.0);
+  vec3 col = mix(uDark, uLight, v);
+  if (uColN > 0.5 && sc.g > 0.004){
+    float mi = floor(sc.b * 2.0 + 0.5);
+    vec3 pcol = mi < 0.5 ? uCols[0] : (mi < 1.5 ? uCols[1] : uCols[2]);
+    float k = uLevels > 1.5 ? step(thr, sc.g) : sc.g;     // dithered edge at low bit depths
+    col = mix(col, mix(pcol * 0.28, pcol, v), k);
+  }
+  gl_FragColor = vec4(col, 1.0);
 }`;
 
 function compile(type, src) {
@@ -521,7 +573,12 @@ const US = uniforms(sceneProg, ['uRes', 'uTime', 'uClock', 'uZ', 'uDriftOn', 'uS
   'uEcho', 'uEchoMode', 'uEchoZoom', 'uEchoSpin']);
 US.uRipA = gl.getUniformLocation(sceneProg, 'uRipA[0]');
 US.uRipB = gl.getUniformLocation(sceneProg, 'uRipB[0]');
-const UO = uniforms(outProg, ['uScene', 'uSceneRes', 'uPix', 'uLevels', 'uDither', 'uInvert', 'uDark', 'uLight']);
+US.uColN = gl.getUniformLocation(sceneProg, 'uColN');
+US.uKey = gl.getUniformLocation(sceneProg, 'uKey');
+US.uCol = gl.getUniformLocation(sceneProg, 'uCol[0]');
+US.uThr = gl.getUniformLocation(sceneProg, 'uThr[0]');
+const UO = uniforms(outProg, ['uScene', 'uSceneRes', 'uPix', 'uLevels', 'uDither', 'uInvert', 'uDark', 'uLight', 'uColN']);
+UO.uCols = gl.getUniformLocation(outProg, 'uCols[0]');
 
 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -843,6 +900,7 @@ function updateVideo(c, dt) {
   }
 }
 function videoUI() {
+  colorUI();
   if (vidNoteEl) vidNoteEl.textContent = vid ? (vidReady ? 'Video loaded. Adding photos will replace it.' : 'Loading video…') : 'No video. You can also drop a video file anywhere.';
 }
 
@@ -1093,6 +1151,7 @@ function setParam(key, v) {
   if (!(key in BASE) || !isFinite(v)) return;
   P[key] = v;
   if (controls[key]) controls[key].set(v);
+  if (key === 'colors' || key === 'colorMatch') colorUI();
   if (key === 'pixel') resize();
   if (key === 'field' && v !== fieldCur) fieldTrans = { to: v, start: clock() };
   if (key === 'vidSound') whenActive(routeVideoAudio);
@@ -1114,6 +1173,7 @@ function extraAutopilot() {
   ]);
 }
 function photoUI() {
+  colorUI();
   if (!photoCountEl) return;
   photoCountEl.textContent = photos.length ? (photos.length === 1 ? '1 photo' : photos.length + ' photos, showing ' + (photoIdx + 1)) : 'No photos. Adding photos replaces a loaded video. You can also drop or paste images anywhere.';
 }
@@ -1344,6 +1404,41 @@ if (MODE_OUTPUT) {
   setInterval(() => postUp({ app: APP, type: 'ping' }), 2000);
 }
 
+/* ---------- color through ---------- */
+const colorRows = [];
+let colorNoteEl = null;
+const toHex = n => '#' + ((n | 0) & 0xffffff).toString(16).padStart(6, '0');
+function colorRow(n) {
+  const key = 'col' + n, tk = 'thr' + n, id = 'c-' + key, tid = 'c-' + tk;
+  const pick = h('input', { type: 'color', id, class: 'swatch', 'aria-label': 'Color ' + n,
+    oninput: () => setParam(key, parseInt(pick.value.slice(1), 16)) });
+  controls[key] = { el: pick, set: v => { pick.value = toHex(v); } };
+  const inp = h('input', { id: tid, type: 'range', min: 0, max: 1, step: 0.01, 'aria-label': 'Color ' + n + ' threshold',
+    oninput: () => setParam(tk, +inp.value) });
+  const out = h('output', { for: tid });
+  controls[tk] = { el: inp, set: v => { inp.value = v; out.textContent = (+v).toFixed(2); } };
+  const row = h('div', { class: 'crow' }, [h('label', { for: id, text: 'Color ' + n }), pick, inp, out]);
+  colorRows.push(row);
+  return row;
+}
+function colorUI() {
+  colorRows.forEach((r, i) => { r.hidden = i >= P.colors; });
+  if (!colorNoteEl) return;
+  if (!P.colors) { colorNoteEl.textContent = 'Everything stays in the base tint. Pick 1 to 3 colors to let through.'; return; }
+  const bySource = P.colorMatch === 2 || (P.colorMatch === 0 && (photoIdx >= 0 || vidReady));
+  colorNoteEl.textContent = bySource
+    ? 'Matching photo or video colors: parts close to each picked color show in it. Threshold is the tolerance; raise it to catch more.'
+    : 'Matching brightness: tones above each threshold show in that color. The highest threshold that is passed wins.';
+}
+function extraColor() {
+  colorNoteEl = h('p', { class: 'note' });
+  const box = h('div', { class: 'sec', style: 'padding:0;gap:9px' }, [
+    h('div', { class: 'crow head' }, [h('span', { text: '' }), h('span', { class: 'lbl', text: 'Pick' }), h('span', { class: 'lbl', text: 'Threshold' }), h('span', { text: '' })]),
+    colorRow(1), colorRow(2), colorRow(3), colorNoteEl,
+  ]);
+  return box;
+}
+
 function audioUI() {
   if (audioStateEl) audioStateEl.textContent = au.kind === 'mic' ? 'Microphone on' : au.kind === 'file' ? 'Audio file playing' : au.vActive ? 'Reacting to the video sound' : 'Audio off';
 }
@@ -1488,7 +1583,7 @@ fsBtn.addEventListener('click', toggleFullscreen);
 }));
 const panel = h('div', { id: 'panel', role: 'region', 'aria-label': 'Controls' });
 panel.hidden = true;
-const EXTRAS = { screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
+const EXTRAS = { color: extraColor, screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
 SCHEMA.forEach(([title, open, specs, extra]) => {
   const sec = h('div', { class: 'sec' });
   const top = extra === 'photo' || extra === 'audio' || extra === 'video';
@@ -1597,6 +1692,7 @@ resize();
    Frame loop: compute the state, render it, and hand it to the output window
    ========================================================================= */
 let last = performance.now(), simTime = 0, zPhase = 0, spinAngle = 0, lastShuffle = 0;
+const hexRGB = n => [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 function computeState(c, dt) {
   updateAudio(c);
 
@@ -1646,6 +1742,7 @@ function computeState(c, dt) {
     haze: P.haze, blend: P.blend, memory: P.memory, contrast, level: P.level,
     echo: P.echo, echoMode: P.echoMode, echoZoom, echoSpin: P.echoSpin,
     ripA, ripB, depth: P.depth, dither: P.dither, invert: P.invert, tint: P.tint,
+    colN: P.colors, colMatch: P.colorMatch, cols: [P.col1, P.col2, P.col3].flatMap(hexRGB), thrs: [P.thr1, P.thr2, P.thr3],
     vid: vid ? { token: vidToken, t: vid.currentTime, playing: !vid.paused && !vid.seeking, rate: vid.playbackRate, wall: Date.now() } : null,
   };
 }
@@ -1696,6 +1793,11 @@ function render(S, idA, idB, vAspect) {
   gl.uniform1f(US.uEchoSpin, S.echoSpin);
   gl.uniform4fv(US.uRipA, S.ripA);
   gl.uniform4fv(US.uRipB, S.ripB);
+  const colN = S.colN || 0, cols = S.cols || [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  gl.uniform1f(US.uColN, colN);
+  gl.uniform1f(US.uKey, S.colMatch || 0);
+  gl.uniform3fv(US.uCol, cols);
+  gl.uniform1fv(US.uThr, S.thrs || [0.5, 0.5, 0.5]);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   // output pass: bit depth, dither, tint
@@ -1712,6 +1814,8 @@ function render(S, idA, idB, vAspect) {
   const tint = TINTS[S.tint] || TINTS[0];
   gl.uniform3fv(UO.uDark, tint[0]);
   gl.uniform3fv(UO.uLight, tint[1]);
+  gl.uniform1f(UO.uColN, colN);
+  gl.uniform3fv(UO.uCols, cols);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   cur = 1 - cur;
 }
