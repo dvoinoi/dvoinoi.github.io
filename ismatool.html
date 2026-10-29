@@ -98,6 +98,17 @@ input[type="color"].swatch::-moz-color-swatch { border: 0; }
 .check { display: flex; align-items: center; gap: 8px; color: var(--ash); font-size: 10px; cursor: pointer; }
 .check input { accent-color: var(--bone); margin: 0; }
 #status { min-height: 14px; padding: 8px 12px 10px; border-top: 1px solid var(--rule); color: var(--ash); font-size: 10px; }
+.shp-canvas { display: block; width: 100%; aspect-ratio: 1; max-width: 100%; touch-action: none; cursor: crosshair; image-rendering: pixelated; border: 1px solid var(--rule); background: #000; }
+.inks { display: flex; gap: 6px; align-items: center; }
+.ink { width: 26px; height: 22px; padding: 0; border: 1px solid var(--rule); cursor: pointer; border-radius: 0; }
+.ink[aria-pressed="true"] { outline: 1.5px solid var(--bone); outline-offset: 2px; }
+.seg { display: flex; flex-wrap: wrap; gap: 0; }
+.seg .btn { margin-left: -1px; }
+.seg .btn:first-child { margin-left: 0; }
+.frames { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.frames .btn { min-width: 30px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.two label { display: grid; gap: 4px; color: var(--ash); font-size: 10px; }
 .scgrid { display: grid; gap: 3px; max-height: 214px; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
 .scrow { display: grid; grid-template-columns: 14px repeat(10, minmax(0, 1fr)); gap: 3px; align-items: center; }
 .scrow b { font-weight: 400; color: var(--ash); font-size: 9px; text-align: center; }
@@ -154,7 +165,9 @@ canvas.curve { display: block; width: 100%; height: 26px; }
 const OPTS = {
   field: ['Smoke', 'Marble', 'Cells', 'Waves', 'Tunnel', 'Signal'],
   symmetry: ['Off', 'Mirror ↔', 'Mirror ↕', 'Quad', 'Kaleido 6', 'Kaleido 8'],
-  pattern: ['Fog', 'Blocks', 'Lines', 'Hatch', 'Dots', 'Crosses', 'Glitch'],
+  pattern: ['Fog', 'Blocks', 'Lines', 'Hatch', 'Dots', 'Crosses', 'Glitch', 'Custom shape'],
+  shapeMode: ['Halftone', 'Stencil', 'Build-up'],
+  shapePick: ['Brightness', 'Animate', 'Random per cell'],
   effect: ['Swirl', 'Shockwave', 'Pinch', 'Bulge', 'Shatter', 'Waves', 'Slice', 'Kaleido', 'Melt', 'Cycle all', 'Random'],
   depth: ['Full', '8-bit', '4-bit', '2-bit', '1-bit'],
   dither: ['Bayer', 'Noise', 'Lines', 'Hard'],
@@ -186,6 +199,7 @@ const BASE = {
   vidMode: 0, vidSpeed: 1, vidStart: 0, vidLength: 1, vidJump: 2, vidStutter: 0.25, vidSound: 0,
   autoRupture: 6, evolve: 0.3, shuffle: 0,
   audioGain: 1, audioDrive: 0.6, beats: 1,
+  shapeMode: 0, shapePick: 0, shapeFps: 6, shapeCell: 1,
   transTime: 3, transCurve: 0, sceneMix: 0, sceneKeys: 0,
   colors: 0, colorMatch: 0, col1: 0xE0322B, col2: 0x2F6BFF, col3: 0xF2C14E, thr1: 0.45, thr2: 0.6, thr3: 0.75,
 };
@@ -208,6 +222,9 @@ const SCHEMA = [
     ['pattern', 'Style', 'sel'], ['patSize', 'Size', 6, 140, 1], ['patMix', 'Mix', 0, 1, 0.01],
     ['patAngle', 'Angle', -90, 90, 1], ['glitch', 'Glitch', 0, 1, 0.01],
   ]],
+  ['Shapes', false, [
+    ['shapeMode', 'Draw as', 'sel'], ['shapePick', 'Frames by', 'sel'], ['shapeFps', 'Frame rate', 0.5, 24, 0.5], ['shapeCell', 'One tone per cell', 'tog'],
+  ], 'shapes'],
   ['Rupture', false, [
     ['effect', 'Effect', 'sel'], ['strength', 'Strength', 0.1, 2, 0.01], ['radius', 'Radius', 0.05, 0.6, 0.01], ['memory', 'Memory', 0.3, 12, 0.1],
   ], 'rupture'],
@@ -288,6 +305,8 @@ uniform float uTime, uClock, uZ, uDriftOn, uSpinAngle, uSym;
 uniform sampler2D uNoise, uPrev, uPhotoA, uPhotoB;
 uniform float uField, uField2, uFieldMix, uScale, uWarp;
 uniform float uPattern, uPatSize, uPatMix, uPatAngle, uGlitch, uJitter;
+uniform sampler2D uShape;
+uniform float uShapeN, uShapeMode, uShapePick, uShapeFrame, uShapeCell;
 uniform float uHasPhoto, uAspectA, uAspectB, uPhotoMix, uHaze, uBlend;
 uniform float uMemory, uContrast, uLevel;
 uniform float uEcho, uEchoMode, uEchoZoom, uEchoSpin;
@@ -393,6 +412,8 @@ vec2 cover(vec2 p, float ia){
   return 1.0 - abs(1.0 - mod(st, 2.0));
 }
 float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+// the drawn shapes live side by side in one texture: four frames across
+float shapeAt(float fr, vec2 u){ u = clamp(u, 0.0, 0.999); return texture2D(uShape, vec2((fr + u.x) * 0.25, u.y)).r; }
 vec3 yuv(vec3 c){ return vec3(lum(c), dot(c, vec3(-0.147, -0.289, 0.436)), dot(c, vec3(0.615, -0.515, -0.100))); }
 // colour distance that cares mostly about hue and saturation, a little about brightness
 float cdist(vec3 a, vec3 b){ vec3 d = yuv(a) - yuv(b); return length(d * vec3(0.45, 1.6, 1.6)); }
@@ -457,8 +478,9 @@ void main(){
   float N = uPatSize;
   vec2 pf = q;
   if (uPattern > 0.5 && uPattern < 1.5) pf = (floor(q * N) + 0.5) / N;
+  if (uPattern > 6.5 && uShapeCell > 0.5){ vec2 pp0 = rot(uPatAngle) * q * N; pf = rot(-uPatAngle) * ((floor(pp0) + 0.5) / N); }
   float gt = floor(uClock * (4.0 + 20.0 * uGlitch));
-  if (uPattern > 5.5){
+  if (uPattern > 5.5 && uPattern < 6.5){
     float band = floor(q.y * N * 0.35 + hash(vec2(gt, 1.0)) * 7.0);
     pf.x += step(1.0 - 0.6 * uGlitch, hash(vec2(band, gt))) * (hash(vec2(band, gt + 9.0)) - 0.5) * 0.4 * uGlitch;
     if (hash(floor(q * vec2(N * 0.12, N * 0.5)) + gt) > 1.0 - 0.25 * uGlitch) pf = (floor(pf * N * 0.25) + 0.5) / (N * 0.25);
@@ -514,8 +536,28 @@ void main(){
       s = fall(cw - aa, cw + aa, min(g.x, g.y)) * fall(arm - aa, arm + aa, max(g.x, g.y)) * step(0.02, base);
     }
     v = mix(base, s, uPatMix);
-  } else if (uPattern > 5.5){
+  } else if (uPattern > 5.5 && uPattern < 6.5){
     if (hash(vec2(floor(q.y * N * 0.5) * 1.7, gt + 2.0)) > 1.0 - 0.12 * uGlitch * uPatMix) v = 1.0 - v;
+  } else if (uPattern > 6.5){
+    /* your drawn shape, tiled */
+    vec2 pp = rot(uPatAngle) * q * N;
+    vec2 cid = floor(pp), f = fract(pp);
+    float fr;
+    if (uShapePick < 0.5) fr = min(floor(base * uShapeN), uShapeN - 1.0);
+    else if (uShapePick < 1.5) fr = mod(uShapeFrame, uShapeN);
+    else fr = min(floor(hash(cid + 0.37) * uShapeN), uShapeN - 1.0);
+    float s;
+    if (uShapeMode < 0.5){
+      float sc = sqrt(base);
+      vec2 u = (f - 0.5) / max(sc, 0.001) + 0.5;
+      s = (base < 0.01 || u.x < 0.0 || u.y < 0.0 || u.x > 1.0 || u.y > 1.0) ? 0.0 : shapeAt(fr, u);
+    } else if (uShapeMode < 1.5){
+      s = shapeAt(fr, f) * base;
+    } else {
+      float sh = shapeAt(fr, f);
+      s = sh > 0.001 ? step(1.0 - sh + 0.02, base) : 0.0;
+    }
+    v = mix(base, s, uPatMix);
   }
   v = clamp(v + flash * 0.55, 0.0, 1.0);
 
@@ -618,6 +660,7 @@ try {
 }
 const US = uniforms(sceneProg, ['uRes', 'uTime', 'uClock', 'uZ', 'uDriftOn', 'uSpinAngle', 'uSym', 'uNoise', 'uPrev', 'uPhotoA', 'uPhotoB',
   'uField', 'uField2', 'uFieldMix', 'uScale', 'uWarp', 'uPattern', 'uPatSize', 'uPatMix', 'uPatAngle', 'uGlitch', 'uJitter',
+  'uShape', 'uShapeN', 'uShapeMode', 'uShapePick', 'uShapeFrame', 'uShapeCell',
   'uHasPhoto', 'uAspectA', 'uAspectB', 'uPhotoMix', 'uHaze', 'uBlend', 'uMemory', 'uContrast', 'uLevel',
   'uEcho', 'uEchoMode', 'uEchoZoom', 'uEchoSpin']);
 US.uRipA = gl.getUniformLocation(sceneProg, 'uRipA[0]');
@@ -660,6 +703,10 @@ function buildNoise(sd) {
 }
 let photoTexA = makeTex(2, 1, 1, new Uint8Array([0, 0, 0, 255]));
 let photoTexB = makeTex(3, 1, 1, new Uint8Array([0, 0, 0, 255]));
+// texture unit 6: the drawn shapes, crisp pixels
+const shapeTex = makeTex(6, 1, 1, new Uint8Array([0, 0, 0, 255]));
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
 let targets = [], cur = 0, sceneW = 1, sceneH = 1, pixOut = 1;
 function makeTarget(w, h) {
@@ -1099,6 +1146,7 @@ function photoToDataUrl(ph) {
 function currentPreset(name, withPhotos, withPad) {
   const pr = { app: 'static-ash', version: 1, name: name || 'Untitled', params: Object.assign({}, P), kiosk: !!kiosk };
   if (withPad !== false) pr.pad = padConfig();
+  pr.shape = shapeForFile();
   const sc = scenesForFile();
   if (sc) pr.scenes = sc;
   if (withPhotos && photos.length) pr.photos = photos.map(ph => ph.src || photoToDataUrl(ph));
@@ -1120,6 +1168,7 @@ async function applyPreset(pr, opts) {
   applyParams(pr.params || {});
   if (typeof pr.kiosk === 'boolean' && opts && opts.boot) setKiosk(pr.kiosk);
   if (pr.pad && typeof pr.pad === 'object') setPadConfig(pr.pad);
+  if (pr.shape && typeof pr.shape === 'object') setShapeData(pr.shape);
   if (Array.isArray(pr.scenes)) setScenes(pr.scenes);
   if (Array.isArray(pr.photos) && pr.photos.length) { clearPhotos(); await addPhotoUrls(pr.photos.filter(s => typeof s === 'string')); }
   if (!MODE_OUTPUT && typeof pr.audio === 'string' && pr.audio) { audioUrl = pr.audio; loadAudioUrl(pr.audio); }
@@ -1153,7 +1202,7 @@ function randomizeNow() {
   setParam('field', RI(6)); setParam('scale', R(0.5, 2.6)); setParam('warp', R(0.4, 1.8));
   setParam('flow', R(0.2, 1.4)); setParam('drift', R(-0.6, 0.8)); setParam('spin', rand() < 0.6 ? 0 : R(-0.4, 0.4));
   setParam('symmetry', rand() < 0.55 ? 0 : RI(6));
-  setParam('pattern', RI(7)); setParam('patSize', Math.round(R(14, 110))); setParam('patMix', R(0.6, 1));
+  setParam('pattern', RI(8)); setParam('patSize', Math.round(R(14, 110))); setParam('patMix', R(0.6, 1));
   setParam('patAngle', Math.round(R(-60, 60))); setParam('glitch', R(0, 0.8));
   setParam('effect', rand() < 0.5 ? 10 : RI(10));
   setParam('depth', [0, 1, 2, 3, 4, 4, 4][RI(7)]); setParam('pixel', [1, 1, 2, 2, 3, 4][RI(6)]); setParam('dither', RI(4));
@@ -1166,7 +1215,7 @@ function randomizeNow() {
 function shuffle() { withStream('look', shuffleNow); }
 function shuffleNow() {
   setParam('field', (fieldCur + 1 + RI(5)) % 6);
-  setParam('pattern', RI(7));
+  setParam('pattern', RI(8));
   if (rand() < 0.4) setParam('symmetry', rand() < 0.5 ? 0 : RI(6));
   rupture(0, 0, 1.3, 1, 0.3);
 }
@@ -1299,7 +1348,7 @@ function sendVideo() {
   if (MODE_OUTPUT || !vid || !outputLive()) return;
   postDown({ app: APP, type: 'video', token: vidToken, blob: vidSrcBlob, url: vidSrcBlob ? null : vidUrl });
 }
-function sendAll() { photos.forEach(sendPhoto); sendVideo(); }
+function sendAll() { photos.forEach(sendPhoto); sendVideo(); shapeSendPending = true; shapeSentAt = 0; }
 function screenUI() {
   if (!screenNoteEl) return;
   if (outputLive()) screenNoteEl.textContent = 'Output window connected. Click it once to fill that screen.' + (preview ? '' : ' The preview here is off to save power.');
@@ -1464,6 +1513,7 @@ function onOutMsg(d) {
     if (!slave) enterSlave();
     latest = d.S; latestP = d.P; latestNew = true; lastMsgAt = performance.now(); outKeymap = !!d.S.keymap;
   } else if (d.type === 'photo') storeRemotePhoto(d);
+  else if (d.type === 'shape') { setShapeData(d, true); if (typeof d.ver === 'number') shp.ver = d.ver; }
   else if (d.type === 'clearPhotos') { [...photoStore.keys()].forEach(k => { if (typeof k === 'string' && k[0] === 'r') photoStore.delete(k); }); }
   else if (d.type === 'video') { if (d.token !== outVidToken) loadOutVideo(d); }
   else if (d.type === 'bye') lastMsgAt = 0;
@@ -1472,6 +1522,375 @@ if (MODE_OUTPUT) {
   window.addEventListener('message', e => { if (!window.opener || e.source === window.opener) onOutMsg(e.data); });
   if (bc) bc.addEventListener('message', e => onOutMsg(e.data));
   setInterval(() => postUp({ app: APP, type: 'ping' }), 2000);
+}
+
+/* ---------- shapes: draw your own pattern tile ---------- */
+const SHAPE_SIZES = [8, 16, 32, 64, 128];
+const SHAPE_STARTS = ['Circle', 'Ring', 'Square', 'Diamond', 'Plus', 'X', 'Star', 'Triangle', 'Heart', 'Radial gradient', 'Checker', 'Stripes', 'Random sprite', 'Noise'];
+const shp = { size: 16, levels: 3, n: 1, cur: 0, frames: [], ver: 1 };
+let shapeDirty = true, shapeSendPending = false, shapeSentAt = 0, shapeClock = 0, shapeSaveT = 0;
+let shapeTool = 'pen', shapeBrush = 1, shapeMirror = 0, shapeInk = 2, shapeCanvas = null, shapeUndo = [];
+let shapeUI = {};
+
+function sdfShape(kind, u, v, S) {
+  const L = Math.hypot(u, v), a = Math.atan2(v, u);
+  switch (kind) {
+    case 'Circle': return L - 0.8;
+    case 'Ring': return Math.abs(L - 0.62) - 0.2;
+    case 'Square': return Math.max(Math.abs(u), Math.abs(v)) - 0.72;
+    case 'Diamond': return (Math.abs(u) + Math.abs(v) - 0.9) * 0.7071;
+    case 'Plus': return Math.min(Math.max(Math.abs(u) - 0.22, Math.abs(v) - 0.85), Math.max(Math.abs(u) - 0.85, Math.abs(v) - 0.22));
+    case 'X': { const p = (u + v) * 0.7071, q = (u - v) * 0.7071; return Math.min(Math.max(Math.abs(p) - 0.2, Math.abs(q) - 0.95), Math.max(Math.abs(p) - 0.95, Math.abs(q) - 0.2)); }
+    case 'Star': { const r = 0.42 + 0.46 * Math.pow(0.5 + 0.5 * Math.cos(5 * (a - Math.PI / 2)), 2.2); return L - r; }
+    case 'Triangle': { const k = Math.sqrt(3); let x = Math.abs(u), y = v + 0.35; return Math.max(k * 0.5 * x + 0.5 * y, -y) - 0.55; }
+    case 'Heart': {
+      const x = Math.abs(u) * 1.1, y = (v + 0.55) * 1.1;
+      if (y + x > 1) return Math.hypot(x - 0.25, y - 0.75) - 0.3536;
+      const d1 = Math.hypot(x, y - 1), m = 0.5 * Math.max(x + y, 0), d2 = Math.hypot(x - m, y - m);
+      return Math.min(d1, d2) * Math.sign(x - y);
+    }
+    default: return 1;
+  }
+}
+function genShape(kind, S, levels) {
+  const out = new Uint8Array(S * S), Lm = levels - 1;
+  if (kind === 'Random sprite') {
+    // a little symmetric creature, drawn on 8 cells and scaled up
+    const g = 8, cells = [];
+    withStream('look', () => { for (let y = 0; y < g; y++) for (let x = 0; x < g / 2; x++) cells[y * g + x] = rand() < 0.48 ? (Lm > 1 && rand() < 0.3 ? 1 + RI(Lm - 1) : Lm) : 0; });
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const cy = Math.floor(y * g / S), cx = Math.floor(x * g / S), mx = cx < g / 2 ? cx : g - 1 - cx;
+      out[y * S + x] = cells[cy * g + mx];
+    }
+    return out;
+  }
+  if (kind === 'Noise') { withStream('look', () => { for (let i = 0; i < out.length; i++) out[i] = RI(levels); }); return out; }
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const u = (x + 0.5) / S * 2 - 1, v = 1 - (y + 0.5) / S * 2;
+    let cov;
+    if (kind === 'Radial gradient') cov = Math.max(0, 1 - Math.hypot(u, v));
+    else if (kind === 'Checker') cov = ((x < S / 2) !== (y < S / 2)) ? 1 : 0;
+    else if (kind === 'Stripes') cov = Math.floor((x + y) / Math.max(1, S / 8)) % 2 ? 1 : 0;
+    else cov = Math.max(0, Math.min(1, 0.5 - sdfShape(kind, u, v, S) * S / 2));
+    out[y * S + x] = Math.round(cov * Lm);
+  }
+  return out;
+}
+function initShape() {
+  shp.size = 16; shp.levels = 3; shp.n = 1; shp.cur = 0;
+  shp.frames = [genShape('Star', 16, 3), new Uint8Array(256), new Uint8Array(256), new Uint8Array(256)];
+}
+initShape();
+
+function uploadShape() {
+  const S = shp.size, W = S * 4, atlas = new Uint8Array(W * S), Lm = shp.levels - 1;
+  for (let f = 0; f < 4; f++) {
+    const fr = shp.frames[Math.min(f, shp.n - 1)];
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) atlas[(S - 1 - y) * W + f * S + x] = Math.round(fr[y * S + x] / Lm * 255);
+  }
+  gl.activeTexture(gl.TEXTURE6);
+  gl.bindTexture(gl.TEXTURE_2D, shapeTex);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, W, S, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, atlas);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+}
+function sendShape() {
+  shapeSendPending = false; shapeSentAt = performance.now();
+  if (MODE_OUTPUT || !outputLive()) return;
+  postDown({ app: APP, type: 'shape', ver: shp.ver, size: shp.size, levels: shp.levels, n: shp.n, frames: shp.frames.slice(0, shp.n).map(f => f.slice()) });
+}
+// presets keep the drawing as 2 bits per pixel, base64
+function packFrame(a) {
+  const b = new Uint8Array(Math.ceil(a.length / 4));
+  for (let i = 0; i < a.length; i++) b[i >> 2] |= (a[i] & 3) << ((i & 3) * 2);
+  let str = '';
+  for (let i = 0; i < b.length; i += 4096) str += String.fromCharCode.apply(null, b.subarray(i, i + 4096));
+  return btoa(str);
+}
+function unpackFrame(str, len) {
+  const bin = atob(str), a = new Uint8Array(len);
+  for (let i = 0; i < len; i++) a[i] = ((bin.charCodeAt(i >> 2) || 0) >> ((i & 3) * 2)) & 3;
+  return a;
+}
+function shapeForFile() { return { size: shp.size, levels: shp.levels, n: shp.n, frames: shp.frames.slice(0, shp.n).map(packFrame) }; }
+function setShapeData(o, quiet) {
+  if (!o || !SHAPE_SIZES.includes(o.size)) return;
+  const S = o.size, levels = Math.max(2, Math.min(4, o.levels | 0)), n = Math.max(1, Math.min(4, o.n | 0)), len = S * S;
+  const frames = [];
+  for (let f = 0; f < 4; f++) {
+    const src = Array.isArray(o.frames) || ArrayBuffer.isView(o.frames) ? o.frames[f] : null;
+    let a = new Uint8Array(len);
+    try {
+      if (typeof src === 'string') a = unpackFrame(src, len);
+      else if (src && src.length === len) a = Uint8Array.from(src);
+    } catch (e) {}
+    for (let i = 0; i < len; i++) if (a[i] >= levels) a[i] = levels - 1;
+    frames.push(a);
+  }
+  shp.size = S; shp.levels = levels; shp.n = n; shp.frames = frames; shp.cur = Math.min(shp.cur, n - 1);
+  shapeUndo = [];
+  shapeDirty = true;
+  if (!quiet) { shp.ver++; shapeSendPending = true; persistShape(); }
+  shapeEditorUI();
+}
+function persistShape() {
+  if (MODE_OUTPUT) return;
+  clearTimeout(shapeSaveT);
+  shapeSaveT = setTimeout(() => { try { localStorage.setItem('static-ash-shape', JSON.stringify(shapeForFile())); } catch (e) {} }, 400);
+}
+function loadShape() { try { const o = JSON.parse(localStorage.getItem('static-ash-shape') || 'null'); if (o) setShapeData(o, true); } catch (e) {} }
+function shapeChanged() {
+  shp.ver++; shapeDirty = true; shapeSendPending = true;
+  persistShape();
+  drawShapeEditor();
+}
+function pushUndo() {
+  shapeUndo.push({ cur: shp.cur, data: shp.frames[shp.cur].slice() });
+  if (shapeUndo.length > 40) shapeUndo.shift();
+}
+function ensureCustom() {
+  if (P.pattern !== 7) {
+    setParam('pattern', 7);
+    if (P.patSize > 30) setParam('patSize', 24);   // big enough to see the drawing
+    status('Pattern switched to Custom shape');
+  }
+}
+
+/* editor drawing */
+function shadeRGB(i) {
+  const t = i / (shp.levels - 1);
+  return [Math.round(230 * t), Math.round(227 * t), Math.round(220 * t)];
+}
+let shapeImg = null, shapeOff = null;
+function drawShapeEditor() {
+  if (!shapeCanvas) return;
+  const S = shp.size, fr = shp.frames[shp.cur];
+  if (!shapeOff || shapeOff.width !== S) { shapeOff = document.createElement('canvas'); shapeOff.width = shapeOff.height = S; shapeImg = shapeOff.getContext('2d').createImageData(S, S); }
+  const d = shapeImg.data;
+  for (let i = 0; i < S * S; i++) { const c = shadeRGB(fr[i]); d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; }
+  shapeOff.getContext('2d').putImageData(shapeImg, 0, 0);
+  const W = shapeCanvas.width, ctx = shapeCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(shapeOff, 0, 0, W, W);
+  const px = W / S;
+  ctx.strokeStyle = 'rgba(138,135,128,0.28)';
+  ctx.lineWidth = 1;
+  if (S <= 32) {
+    ctx.beginPath();
+    for (let i = 1; i < S; i++) { const p = Math.round(i * px) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, W); ctx.moveTo(0, p); ctx.lineTo(W, p); }
+    ctx.stroke();
+  }
+  if (shapeMirror) {
+    ctx.strokeStyle = 'rgba(230,227,220,0.55)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    if (shapeMirror & 1) { ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, W); }
+    if (shapeMirror & 2) { ctx.moveTo(0, W / 2); ctx.lineTo(W, W / 2); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+function mirrorPts(x, y) {
+  const S = shp.size, pts = [[x, y]];
+  if (shapeMirror & 1) pts.push([S - 1 - x, y]);
+  if (shapeMirror & 2) pts.push([x, S - 1 - y]);
+  if ((shapeMirror & 3) === 3) pts.push([S - 1 - x, S - 1 - y]);
+  return pts;
+}
+function plot(x, y, ink) {
+  const S = shp.size, fr = shp.frames[shp.cur], b = shapeBrush, o = Math.floor((b - 1) / 2);
+  mirrorPts(x, y).forEach(([px, py]) => {
+    for (let dy = 0; dy < b; dy++) for (let dx = 0; dx < b; dx++) {
+      const X = px - o + dx, Y = py - o + dy;
+      if (X >= 0 && Y >= 0 && X < S && Y < S) fr[Y * S + X] = ink;
+    }
+  });
+}
+function plotLine(x0, y0, x1, y1, ink) {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+  for (let i = 0; i <= n; i++) plot(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), ink);
+}
+function floodFill(x, y, ink) {
+  const S = shp.size, fr = shp.frames[shp.cur];
+  mirrorPts(x, y).forEach(([sx, sy]) => {
+    const from = fr[sy * S + sx];
+    if (from === ink) return;
+    const stack = [sy * S + sx];
+    while (stack.length) {
+      const i = stack.pop();
+      if (fr[i] !== from) continue;
+      fr[i] = ink;
+      const cx = i % S, cy = (i / S) | 0;
+      if (cx > 0) stack.push(i - 1);
+      if (cx < S - 1) stack.push(i + 1);
+      if (cy > 0) stack.push(i - S);
+      if (cy < S - 1) stack.push(i + S);
+    }
+  });
+}
+let stroke = null;
+function cellAt(e) {
+  const r = shapeCanvas.getBoundingClientRect(), S = shp.size;
+  return [Math.max(0, Math.min(S - 1, Math.floor((e.clientX - r.left) / r.width * S))), Math.max(0, Math.min(S - 1, Math.floor((e.clientY - r.top) / r.height * S)))];
+}
+function shapePointerDown(e) {
+  e.preventDefault();
+  try { shapeCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  const ink = e.button === 2 || e.altKey ? 0 : Math.min(shapeInk, shp.levels - 1);
+  const [x, y] = cellAt(e);
+  pushUndo();
+  ensureCustom();
+  if (shapeTool === 'fill') { floodFill(x, y, ink); shapeChanged(); return; }
+  stroke = { x0: x, y0: y, last: [x, y], ink, base: shp.frames[shp.cur].slice() };
+  plot(x, y, ink);
+  shapeChanged();
+}
+function shapePointerMove(e) {
+  if (!stroke) return;
+  const [x, y] = cellAt(e);
+  if (shapeTool === 'line') { shp.frames[shp.cur].set(stroke.base); plotLine(stroke.x0, stroke.y0, x, y, stroke.ink); }
+  else { plotLine(stroke.last[0], stroke.last[1], x, y, stroke.ink); stroke.last = [x, y]; }
+  shapeChanged();
+}
+function shapePointerUp() { stroke = null; }
+
+/* whole-frame operations */
+function frameOp(fn) { pushUndo(); fn(shp.frames[shp.cur], shp.size, shp.levels - 1); ensureCustom(); shapeChanged(); }
+const OPS = {
+  clear: fr => fr.fill(0),
+  invert: (fr, S, Lm) => { for (let i = 0; i < fr.length; i++) fr[i] = Lm - fr[i]; },
+  flipX: (fr, S) => { for (let y = 0; y < S; y++) fr.subarray(y * S, y * S + S).reverse(); },
+  flipY: (fr, S) => { const c = fr.slice(); for (let y = 0; y < S; y++) fr.set(c.subarray((S - 1 - y) * S, (S - y) * S), y * S); },
+  rotate: (fr, S) => { const c = fr.slice(); for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) fr[x * S + (S - 1 - y)] = c[y * S + x]; },
+};
+function resampleFrame(a, S1, S2) {
+  const b = new Uint8Array(S2 * S2);
+  for (let y = 0; y < S2; y++) for (let x = 0; x < S2; x++) b[y * S2 + x] = a[Math.floor(y * S1 / S2) * S1 + Math.floor(x * S1 / S2)];
+  return b;
+}
+function setShapeSize(S2) {
+  if (S2 === shp.size) return;
+  shp.frames = shp.frames.map(f => resampleFrame(f, shp.size, S2));
+  shp.size = S2; shapeUndo = [];
+  shapeChanged(); shapeEditorUI();
+}
+function setShapeLevels(L2) {
+  const L1 = shp.levels;
+  if (L2 === L1) return;
+  shp.frames.forEach(f => { for (let i = 0; i < f.length; i++) f[i] = Math.round(f[i] / (L1 - 1) * (L2 - 1)); });
+  shp.levels = L2; shapeInk = Math.min(shapeInk, L2 - 1); if (shapeInk === 0) shapeInk = L2 - 1;
+  shapeChanged(); shapeEditorUI();
+}
+function setFrameCount(n) {
+  shp.n = n; shp.cur = Math.min(shp.cur, n - 1);
+  shapeChanged(); shapeEditorUI();
+}
+function copyToNext() {
+  if (shp.cur >= 3) { status('Frame 4 is the last one'); return; }
+  shp.frames[shp.cur + 1] = shp.frames[shp.cur].slice();
+  shp.cur++; if (shp.n < shp.cur + 1) shp.n = shp.cur + 1;
+  shapeChanged(); shapeEditorUI();
+}
+function buildRamp() {
+  // four frames: the current drawing at a quarter, half, three quarters and full size
+  const S = shp.size, src = shp.frames[shp.cur].slice();
+  for (let f = 0; f < 4; f++) {
+    const k = (f + 1) / 4, a = new Uint8Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const sx = Math.floor((x - S / 2 + 0.5) / k + S / 2), sy = Math.floor((y - S / 2 + 0.5) / k + S / 2);
+      a[y * S + x] = sx >= 0 && sy >= 0 && sx < S && sy < S ? src[sy * S + sx] : 0;
+    }
+    shp.frames[f] = a;
+  }
+  shp.n = 4; shp.cur = 3;
+  if (P.shapePick !== 0) setParam('shapePick', 0);
+  ensureCustom(); shapeChanged(); shapeEditorUI();
+  status('Built 4 frames from small to full: dark areas get the small ones');
+}
+function shapeEditorUI() {
+  const u = shapeUI;
+  if (!u.size) return;
+  u.size.value = shp.size; u.levels.value = shp.levels; u.count.value = shp.n;
+  u.tabs.forEach((b, i) => { b.hidden = i >= shp.n; b.setAttribute('aria-pressed', String(i === shp.cur)); });
+  u.inks.innerHTML = '';
+  for (let i = 0; i < shp.levels; i++) {
+    const c = shadeRGB(i);
+    const b = h('button', { type: 'button', class: 'ink', 'aria-label': i === 0 ? 'Black' : i === shp.levels - 1 ? 'White' : 'Gray ' + i, 'aria-pressed': String(i === shapeInk),
+      onclick: () => { shapeInk = i; shapeEditorUI(); } });
+    b.style.background = 'rgb(' + c.join(',') + ')';
+    u.inks.appendChild(b);
+  }
+  u.tools.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === shapeTool)));
+  u.brush.value = shapeBrush; u.mirror.value = shapeMirror;
+  drawShapeEditor();
+}
+function extraShapes(specs) {
+  const u = shapeUI;
+  const sel = (id, label, opts, val, on) => {
+    const s = h('select', { id, onchange: () => on(+s.value) });
+    opts.forEach(([v, t]) => s.appendChild(h('option', { value: v, text: t })));
+    s.value = val;
+    return [h('label', { for: id }, [h('span', { text: label }), s]), s];
+  };
+  let lab;
+  [lab, u.size] = sel('c-shp-size', 'Grid', SHAPE_SIZES.map(S => [S, S + ' × ' + S]), shp.size, setShapeSize);
+  const sizeLab = lab;
+  [lab, u.levels] = sel('c-shp-levels', 'Shades', [[2, '2 · black & white'], [3, '3 · + gray'], [4, '4 · + two grays']], shp.levels, setShapeLevels);
+  const levLab = lab;
+  [lab, u.count] = sel('c-shp-count', 'Frames', [[1, '1'], [2, '2'], [3, '3'], [4, '4']], shp.n, setFrameCount);
+  const cntLab = lab;
+  [lab, u.brush] = sel('c-shp-brush', 'Brush', [1, 2, 3, 4, 6, 8, 12].map(b => [b, b + ' px']), shapeBrush, v => { shapeBrush = v; });
+  const brushLab = lab;
+  [lab, u.mirror] = sel('c-shp-mirror', 'Mirror', [[0, 'Off'], [1, 'Left ↔ right'], [2, 'Top ↕ bottom'], [3, 'Four ways']], shapeMirror, v => { shapeMirror = v; drawShapeEditor(); });
+  const mirLab = lab;
+  u.tabs = [0, 1, 2, 3].map(i => h('button', { type: 'button', class: 'btn', text: String(i + 1), 'aria-label': 'Edit frame ' + (i + 1), onclick: () => { shp.cur = i; shapeEditorUI(); } }));
+  u.inks = h('div', { class: 'inks' });
+  u.tools = [['pen', 'Pen'], ['line', 'Line'], ['fill', 'Fill']].map(([t, label]) => {
+    const b = h('button', { type: 'button', class: 'btn', text: label, onclick: () => { shapeTool = t; shapeEditorUI(); } });
+    b.dataset.tool = t;
+    return b;
+  });
+  shapeCanvas = h('canvas', { class: 'shp-canvas', width: 512, height: 512, 'aria-label': 'Shape editor. Draw with the mouse or a finger; right-click or Alt paints black.' });
+  shapeCanvas.addEventListener('pointerdown', shapePointerDown);
+  shapeCanvas.addEventListener('pointermove', shapePointerMove);
+  shapeCanvas.addEventListener('pointerup', shapePointerUp);
+  shapeCanvas.addEventListener('pointercancel', shapePointerUp);
+  shapeCanvas.addEventListener('contextmenu', e => e.preventDefault());
+  const start = h('select', { id: 'c-shp-start', 'aria-label': 'Start from a shape', onchange: () => {
+    const k = start.value; start.value = '';
+    if (!k) return;
+    frameOp(fr => fr.set(genShape(k, shp.size, shp.levels)));
+  } });
+  start.appendChild(h('option', { value: '', text: 'Start from a shape…' }));
+  SHAPE_STARTS.forEach(k => start.appendChild(h('option', { value: k, text: k })));
+  const by = {};
+  specs.forEach(sp => { by[sp[0]] = control(sp); });
+  loadShape();
+  const box = h('div', { class: 'sec', style: 'padding:0;gap:9px' }, [
+    h('p', { class: 'note', text: 'Draw a tile and it repeats across the screen. Drawing switches Pattern to Custom shape; Pattern size, angle and mix still apply.' }),
+    h('div', { class: 'two' }, [sizeLab, levLab]),
+    h('div', { class: 'frames' }, [h('span', { class: 'lbl', text: 'Frame' }), ...u.tabs]),
+    shapeCanvas,
+    h('div', { class: 'frames' }, [u.inks, h('div', { class: 'seg' }, u.tools)]),
+    h('div', { class: 'two' }, [brushLab, mirLab]),
+    start,
+    h('div', { class: 'btns' }, [
+      h('button', { class: 'btn', type: 'button', text: 'Undo', onclick: () => { const s = shapeUndo.pop(); if (s) { shp.frames[s.cur] = s.data; shp.cur = s.cur; shapeChanged(); shapeEditorUI(); } } }),
+      h('button', { class: 'btn', type: 'button', text: 'Clear', onclick: () => frameOp(OPS.clear) }),
+      h('button', { class: 'btn', type: 'button', text: 'Invert', onclick: () => frameOp(OPS.invert) }),
+      h('button', { class: 'btn', type: 'button', text: 'Flip ↔', onclick: () => frameOp(OPS.flipX) }),
+      h('button', { class: 'btn', type: 'button', text: 'Flip ↕', onclick: () => frameOp(OPS.flipY) }),
+      h('button', { class: 'btn', type: 'button', text: 'Rotate', onclick: () => frameOp(OPS.rotate) }),
+    ]),
+    h('div', { class: 'two' }, [cntLab, h('div', { class: 'btns', style: 'align-items:end' }, [
+      h('button', { class: 'btn', type: 'button', text: 'Copy to next', onclick: copyToNext }),
+      h('button', { class: 'btn', type: 'button', text: 'Build ramp', onclick: buildRamp }),
+    ])]),
+    by.shapeMode, by.shapePick, by.shapeFps, by.shapeCell,
+    h('p', { class: 'note', text: 'Halftone: the shape grows with brightness. Stencil: the full shape, lit by brightness. Build-up: white parts appear first and gray parts only in brighter areas. Frames by Brightness gives dark areas frame 1 and bright areas the last frame; Build ramp makes four frames from small to full size for that. Right-click or hold Alt to paint black. The drawing is saved in this browser and goes into presets and exported pages.' }),
+  ]);
+  shapeEditorUI();
+  return box;
 }
 
 /* ---------- scenes ---------- */
@@ -2305,6 +2724,7 @@ SCHEMA.forEach(([title, open, specs, extra]) => {
   const sec = h('div', { class: 'sec' });
   const top = extra === 'photo' || extra === 'audio' || extra === 'video';
   if (extra === 'scenes') sec.appendChild(extraScenes(specs));
+  else if (extra === 'shapes') sec.appendChild(extraShapes(specs));
   else {
     if (top) sec.appendChild(EXTRAS[extra]());
     specs.forEach(s => sec.appendChild(control(s)));
@@ -2482,6 +2902,8 @@ function computeState(c, dt) {
     sym: P.symmetry, field: fieldCur, field2: fieldTrans ? fieldTrans.to : fieldCur, fieldMix,
     scale, warp, pattern: P.pattern, patSize, patMix: P.patMix, patAngle,
     glitch: Math.min(1, P.glitch + au.treble * drive * 0.6), jitter: au.treble * drive * 1.5,
+    shapeN: shp.n, shapeMode: P.shapeMode, shapePick: P.shapePick, shapeCell: P.shapeCell, shapeVer: shp.ver,
+    shapeFrame: Math.floor((shapeClock += paused ? 0 : dt) * P.shapeFps),
     hasPhoto: (curA != null || vidReady) ? 1 : 0, idA: vidReady ? 'v' : curA, idB: vidReady ? null : curB, photoMix,
     haze: P.haze, blend: P.blend, memory: P.memory, contrast, level: P.level,
     echo: P.echo, echoMode: P.echoMode, echoZoom, echoSpin: P.echoSpin,
@@ -2504,6 +2926,8 @@ function render(S, idA, idB, vAspect) {
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, prev.tex);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, photoTexA);
   gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, photoTexB);
+  gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, shapeTex);
+  gl.uniform1i(US.uShape, 6);
   gl.uniform1i(US.uNoise, 0); gl.uniform1i(US.uPrev, 1); gl.uniform1i(US.uPhotoA, 2); gl.uniform1i(US.uPhotoB, 3);
   gl.uniform2f(US.uRes, sceneW, sceneH);
   gl.uniform1f(US.uTime, S.simTime);
@@ -2518,6 +2942,11 @@ function render(S, idA, idB, vAspect) {
   gl.uniform1f(US.uScale, S.scale);
   gl.uniform1f(US.uWarp, S.warp);
   gl.uniform1f(US.uPattern, S.pattern);
+  gl.uniform1f(US.uShapeN, S.shapeN || 1);
+  gl.uniform1f(US.uShapeMode, S.shapeMode || 0);
+  gl.uniform1f(US.uShapePick, S.shapePick || 0);
+  gl.uniform1f(US.uShapeFrame, S.shapeFrame || 0);
+  gl.uniform1f(US.uShapeCell, S.shapeCell == null ? 1 : S.shapeCell);
   gl.uniform1f(US.uPatSize, S.patSize);
   gl.uniform1f(US.uPatMix, S.patMix);
   gl.uniform1f(US.uPatAngle, S.patAngle);
@@ -2572,6 +3001,7 @@ function outFrame() {
   latestNew = false;
   const S = latest;
   if (S.seed && S.seed !== noiseSeed) buildNoise(S.seed);
+  if (S.shapeVer && S.shapeVer !== shp.ver) needAll();
   if (latestP) { const px = P.pixel; Object.assign(P, latestP); if (P.pixel !== px) resize(); }
   simTime = S.simTime; zPhase = S.zPhase; spinAngle = S.spinAngle;
   const idA = mapId(S.idA), idB = mapId(S.idB);
@@ -2612,6 +3042,8 @@ function frame(now) {
       render(S, S.idA, S.idB, vid && vid.videoWidth ? vid.videoWidth / vid.videoHeight : 16 / 9);
     }
   }
+  if (shapeDirty) { shapeDirty = false; uploadShape(); }
+  if (shapeSendPending && performance.now() - shapeSentAt > 150) sendShape();
   if (snapPending) {
     snapPending = false;
     canvas.toBlob(b => { if (b) saveFile('static-ash-' + Date.now() + '.png', b); }, 'image/png');
