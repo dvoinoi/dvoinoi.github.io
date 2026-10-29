@@ -98,6 +98,22 @@ input[type="color"].swatch::-moz-color-swatch { border: 0; }
 .check { display: flex; align-items: center; gap: 8px; color: var(--ash); font-size: 10px; cursor: pointer; }
 .check input { accent-color: var(--bone); margin: 0; }
 #status { min-height: 14px; padding: 8px 12px 10px; border-top: 1px solid var(--rule); color: var(--ash); font-size: 10px; }
+.padrow { display: grid; grid-template-columns: 74px minmax(0, 1fr) 26px; gap: 6px; align-items: center; }
+.padrow .mode { grid-column: 2 / 3; }
+.padhead { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 6px; color: var(--ash); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+.btn.padin { padding: 6px 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.btn.padin.learn { border-color: var(--bone); border-style: dashed; }
+.padrow.on .btn.padin { background: var(--bone); color: #000; border-color: var(--bone); }
+.padrow select { font-size: 10.5px; }
+.btn.x { padding: 6px 0; text-align: center; }
+#cross {
+  position: fixed; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  pointer-events: none; z-index: 3; mix-blend-mode: difference; opacity: 0; transition: opacity .25s;
+}
+#cross::before, #cross::after { content: ""; position: absolute; background: var(--bone); }
+#cross::before { left: 10px; top: 0; width: 2px; height: 22px; }
+#cross::after { top: 10px; left: 0; width: 22px; height: 2px; }
+#cross.show { opacity: 1; }
 #hint {
   position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   color: var(--bone); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
@@ -196,6 +212,7 @@ const SCHEMA = [
   ['Audio', false, [
     ['audioGain', 'Gain', 0, 4, 0.01], ['audioDrive', 'Drive', 0, 1, 0.01], ['beats', 'Beat hits', 'tog'],
   ], 'audio'],
+  ['Controller', false, [], 'pad'],
   ['Second screen', false, [], 'screen'],
   ['Presets & export', false, [], 'presets'],
 ];
@@ -1041,8 +1058,9 @@ function photoToDataUrl(ph) {
   c.getContext('2d').drawImage(ph.canvas, 0, 0, c.width, c.height);
   return c.toDataURL('image/jpeg', 0.86);
 }
-function currentPreset(name, withPhotos) {
+function currentPreset(name, withPhotos, withPad) {
   const pr = { app: 'static-ash', version: 1, name: name || 'Untitled', params: Object.assign({}, P), kiosk: !!kiosk };
+  if (withPad !== false) pr.pad = padConfig();
   if (withPhotos && photos.length) pr.photos = photos.map(ph => ph.src || photoToDataUrl(ph));
   if (audioUrl) pr.audio = audioUrl;
   if (vidUrl && !/^(blob|data):/.test(vidUrl)) pr.video = vidUrl;
@@ -1058,6 +1076,7 @@ async function applyPreset(pr, opts) {
   if (!pr || typeof pr !== 'object') throw new Error('That is not a preset.');
   applyParams(pr.params || {});
   if (typeof pr.kiosk === 'boolean' && opts && opts.boot) setKiosk(pr.kiosk);
+  if (pr.pad && typeof pr.pad === 'object') setPadConfig(pr.pad);
   if (Array.isArray(pr.photos) && pr.photos.length) { clearPhotos(); await addPhotoUrls(pr.photos.filter(s => typeof s === 'string')); }
   if (!MODE_OUTPUT && typeof pr.audio === 'string' && pr.audio) { audioUrl = pr.audio; loadAudioUrl(pr.audio); }
   if (typeof pr.video === 'string' && pr.video) loadVideo(pr.video, pr.video.split('/').pop());
@@ -1293,6 +1312,7 @@ function extraScreen() {
 }
 function onCtlMsg(d, src) {
   if (MODE_OUTPUT || !d || d.app !== APP) return;
+  if (d.type === 'pad') { if (d.snap && Array.isArray(d.snap.b) && Array.isArray(d.snap.a)) remotePad = { snap: { b: d.snap.b.map(Number), a: d.snap.a.map(Number), id: String(d.snap.id || ''), std: !!d.snap.std }, at: performance.now() }; return; }
   if (d.type === 'hello' || d.type === 'ping' || d.type === 'need') {
     if (src && src !== window && (!outWin || outWin.closed)) outWin = src;
     const wasLive = outputLive();
@@ -1404,6 +1424,397 @@ if (MODE_OUTPUT) {
   setInterval(() => postUp({ app: APP, type: 'ping' }), 2000);
 }
 
+/* ---------- game controller ---------- */
+const PAD_LS = 'static-ash-pad';
+const STD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L3', 'R3', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'Home'];
+const AXIS_NAMES = ['L stick ←→', 'L stick ↑↓', 'R stick ←→', 'R stick ↑↓'];
+const AXIS_HALF = [['L stick ←', 'L stick →'], ['L stick ↑', 'L stick ↓'], ['R stick ←', 'R stick →'], ['R stick ↑', 'R stick ↓']];
+const PAD_DEFAULT = [
+  ['a0', 'cursorX'], ['a1', 'cursorY'], ['b0', 'rupture'], ['b1', 'calm'], ['b2', 'next:effect'], ['b3', 'randomize'],
+  ['b4', 'prev:field'], ['b5', 'next:field'], ['b6', 'p:warp', 'push'], ['b7', 'p:echo', 'push'],
+  ['a2', 'p:spin', 'nudge'], ['a3', 'p:scale', 'nudge'],
+  ['b12', 'next:depth'], ['b13', 'prev:depth'], ['b14', 'prev:pattern'], ['b15', 'next:pattern'],
+  ['b8', 'shuffle'], ['b9', 'pause'], ['b10', 'hold:invert'], ['b11', 'hold:glitch'],
+];
+// every action the controller can drive: [id, label, group, kind]  kind: press | hold | axis
+const PAD_ACTIONS = [['none', 'Nothing', '', 'press']];
+const RANGES = {};
+(function buildActions() {
+  const A = (id, label, group, kind) => PAD_ACTIONS.push([id, label, group, kind]);
+  A('rupture', 'Rupture at the cross (hold and move to smear)', 'Play', 'hold');
+  A('ruptureRandom', 'Rupture somewhere random', 'Play', 'press');
+  A('calm', 'Calm all ruptures', 'Play', 'press');
+  A('randomize', 'Randomize', 'Play', 'press');
+  A('shuffle', 'Shuffle source and pattern', 'Play', 'press');
+  A('pause', 'Pause / play', 'Play', 'press');
+  A('presetNext', 'Next preset', 'Play', 'press');
+  A('presetPrev', 'Previous preset', 'Play', 'press');
+  A('photoNext', 'Next photo', 'Play', 'press');
+  A('photoPrev', 'Previous photo', 'Play', 'press');
+  A('vidJump', 'Video: jump', 'Play', 'press');
+  A('panel', 'Show / hide controls', 'Play', 'press');
+  A('hold:freeze', 'Freeze while held', 'Hold', 'hold');
+  A('hold:invert', 'Invert while held', 'Hold', 'hold');
+  A('hold:glitch', 'Full glitch while held', 'Hold', 'hold');
+  A('hold:echo', 'Echo trails while held', 'Hold', 'hold');
+  A('hold:1bit', '1-bit while held', 'Hold', 'hold');
+  A('hold:mirror', 'Kaleidoscope while held', 'Hold', 'hold');
+  A('hold:color', 'Colors on while held', 'Hold', 'hold');
+  A('cursorX', 'Move the cross ←→', 'Move', 'axis');
+  A('cursorY', 'Move the cross ↑↓', 'Move', 'axis');
+  SCHEMA.forEach(([title, , specs]) => specs.forEach(sp => {
+    if (sp[2] === 'sel') {
+      A('next:' + sp[0], title + ' · next ' + sp[1].toLowerCase(), 'Switch', 'press');
+      A('prev:' + sp[0], title + ' · previous ' + sp[1].toLowerCase(), 'Switch', 'press');
+    } else if (sp[2] === 'tog') {
+      A('tog:' + sp[0], title + ' · ' + sp[1].toLowerCase() + ' on/off', 'Switch', 'press');
+    } else {
+      RANGES[sp[0]] = [sp[2], sp[3], sp[4]];
+      A('p:' + sp[0], title + ' · ' + sp[1], 'Slider', 'axis');
+    }
+  }));
+  [1, 2, 3].forEach(n => { RANGES['thr' + n] = [0, 1, 0.01]; A('p:thr' + n, 'Color · threshold ' + n, 'Slider', 'axis'); });
+})();
+const ACTION = {};
+PAD_ACTIONS.forEach(a => { ACTION[a[0]] = a; });
+const HOLD_SETS = {
+  invert: () => ({ invert: P.invert ? 0 : 1 }),
+  glitch: () => ({ pattern: 6, glitch: 1 }),
+  echo: () => ({ echo: 0.92, echoMode: 1 }),
+  '1bit': () => ({ depth: 4 }),
+  mirror: () => ({ symmetry: 5 }),
+  color: () => ({ colors: P.colors || 1 }),
+};
+
+const pad = { enabled: 1, deadzone: 0.15, speed: 1, cross: 1, maps: [] };
+let padBlocked = false, remotePad = null, padSnap = null, learning = null, padNoteEl = null, padRowsEl = null;
+let crossX = 0, crossY = 0, crossUntil = 0, padRupType = 0, padLastSmear = 0, padLastPos = [0, 0], padPresetI = -1;
+const padRowEls = [];
+
+function defaultMaps() { return PAD_DEFAULT.map(([input, action, mode]) => ({ input, action, mode: mode || null })); }
+function padConfig() { return { enabled: pad.enabled, deadzone: pad.deadzone, speed: pad.speed, cross: pad.cross, maps: pad.maps.map(m => ({ input: m.input, action: m.action, mode: m.mode || null })) }; }
+function setPadConfig(cfg, quiet) {
+  if (!cfg || typeof cfg !== 'object') return;
+  const num = (v, d, lo, hi) => (typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  pad.enabled = num(cfg.enabled, 1, 0, 1);
+  pad.deadzone = num(cfg.deadzone, 0.15, 0, 0.6);
+  pad.speed = num(cfg.speed, 1, 0.2, 3);
+  pad.cross = num(cfg.cross, 1, 0, 1);
+  if (Array.isArray(cfg.maps)) {
+    pad.maps = cfg.maps
+      .filter(m => m && typeof m.input === 'string' && /^(b\d+|a\d+[+-]?)$/.test(m.input) && ACTION[m.action])
+      .slice(0, 64)
+      .map(m => ({ input: m.input, action: m.action, mode: ['set', 'nudge', 'push'].includes(m.mode) ? m.mode : null }));
+  }
+  if (!quiet) savePad();
+  padSettingsUI();
+  renderPadRows();
+}
+function savePad() { if (MODE_OUTPUT) return; try { localStorage.setItem(PAD_LS, JSON.stringify(padConfig())); } catch (e) {} }
+function loadPad() {
+  let cfg = null;
+  try { cfg = JSON.parse(localStorage.getItem(PAD_LS) || 'null'); } catch (e) {}
+  if (cfg) setPadConfig(cfg, true); else pad.maps = defaultMaps();
+}
+
+function inputLabel(inp, std) {
+  if (!inp) return 'Learn';
+  let m = /^b(\d+)$/.exec(inp);
+  if (m) return std !== false && STD_NAMES[+m[1]] ? STD_NAMES[+m[1]] : 'Button ' + m[1];
+  m = /^a(\d+)([+-]?)$/.exec(inp);
+  if (m) {
+    const n = +m[1];
+    if (std !== false && n < 4) return m[2] ? AXIS_HALF[n][m[2] === '-' ? 0 : 1] : AXIS_NAMES[n];
+    return 'Axis ' + n + (m[2] || '');
+  }
+  return inp;
+}
+function readPads() {
+  let list;
+  try { list = navigator.getGamepads ? navigator.getGamepads() : []; }
+  catch (e) { padBlocked = true; return null; }
+  let snap = null;
+  for (const g of list || []) {
+    if (!g || g.connected === false) continue;
+    if (!snap) snap = { b: [], a: [], id: g.id, std: g.mapping === 'standard' };
+    g.buttons.forEach((bt, i) => { snap.b[i] = Math.max(snap.b[i] || 0, bt.value || (bt.pressed ? 1 : 0)); });
+    g.axes.forEach((v, i) => { if (Math.abs(v) > Math.abs(snap.a[i] || 0)) snap.a[i] = v; });
+  }
+  return snap;
+}
+function inputValue(snap, inp) {
+  let m = /^b(\d+)$/.exec(inp);
+  if (m) return snap.b[+m[1]] || 0;
+  m = /^a(\d+)([+-]?)$/.exec(inp);
+  if (!m) return 0;
+  let v = snap.a[+m[1]] || 0;
+  const dz = pad.deadzone;
+  v = Math.abs(v) < dz ? 0 : Math.sign(v) * (Math.abs(v) - dz) / (1 - dz);
+  if (m[2] === '+') return Math.max(0, v);
+  if (m[2] === '-') return Math.max(0, -v);
+  return v;
+}
+const isFullAxis = inp => /^a\d+$/.test(inp);
+const isYAxis = inp => { const m = /^a(\d+)/.exec(inp); return !!m && +m[1] % 2 === 1; };
+function stepRound(v, st) { return st >= 1 ? Math.round(v) : +(Math.round(v / st) * st).toFixed(4); }
+
+function padPress(id) {
+  if (id === 'ruptureRandom') { const [x, y] = randomSpot(); rupture(x, y, 1, pickEffect()); }
+  else if (id === 'calm') calm();
+  else if (id === 'randomize') randomize();
+  else if (id === 'shuffle') shuffle();
+  else if (id === 'pause') setPaused(!paused);
+  else if (id === 'presetNext' || id === 'presetPrev') cyclePreset(id === 'presetNext' ? 1 : -1);
+  else if (id === 'photoNext') showPhoto(photoIdx + 1);
+  else if (id === 'photoPrev') showPhoto(photoIdx - 1);
+  else if (id === 'vidJump') vidJump();
+  else if (id === 'panel') setPanel(panel.hidden);
+  else if (id.startsWith('next:') || id.startsWith('prev:')) {
+    const key = id.slice(5), n = OPTS[key].length, d = id[0] === 'n' ? 1 : -1;
+    setParam(key, ((P[key] + d) % n + n) % n);
+  } else if (id.startsWith('tog:')) { const key = id.slice(4); setParam(key, P[key] ? 0 : 1); }
+}
+function cyclePreset(d) {
+  const saved = readSaved();
+  const list = BUILTIN.map((b, i) => ({ name: b.name, pr: b, v: 'b:' + i })).concat(Object.keys(saved).map(n => ({ name: n, pr: saved[n], v: 's:' + n })));
+  padPresetI = ((padPresetI + d) % list.length + list.length) % list.length;
+  const it = list[padPresetI];
+  applyPreset(it.pr);
+  if (presetSel) presetSel.value = it.v;
+  status('Preset: ' + it.name);
+}
+function holdStart(m) {
+  const k = m.action.slice(5);
+  if (k === 'freeze') { m._saved = { paused }; setPaused(true); return; }
+  const set = HOLD_SETS[k] ? HOLD_SETS[k]() : {};
+  m._saved = {};
+  Object.keys(set).forEach(key => { m._saved[key] = P[key]; setParam(key, set[key]); });
+}
+function holdEnd(m) {
+  if (!m._saved) return;
+  if ('paused' in m._saved) setPaused(m._saved.paused);
+  else Object.keys(m._saved).forEach(key => setParam(key, m._saved[key]));
+  m._saved = null;
+}
+function padSlider(m, v, dt) {
+  const key = m.action.slice(2), r = RANGES[key];
+  if (!r) return;
+  const [mn, mx, st] = r;
+  const mode = m.mode || (isFullAxis(m.input) ? 'nudge' : 'push');
+  let x = isYAxis(m.input) && isFullAxis(m.input) ? -v : v;   // stick up = more
+  if (mode === 'set') {
+    const t = isFullAxis(m.input) ? (x + 1) / 2 : x;
+    if (m._last === undefined || Math.abs(t - m._last) > 0.004) { m._last = t; setParam(key, stepRound(mn + t * (mx - mn), st)); }
+  } else if (mode === 'push') {
+    const a = Math.abs(x);
+    if (a > 0.02) {
+      if (m._base === undefined) m._base = P[key];
+      setParam(key, stepRound(m._base + a * (mx - m._base), st));
+    } else if (m._base !== undefined) { setParam(key, m._base); m._base = undefined; }
+  } else if (x !== 0) {
+    m._acc = Math.min(mx, Math.max(mn, (m._acc === undefined ? P[key] : m._acc) + x * (mx - mn) * 0.45 * dt));
+    setParam(key, stepRound(m._acc, st));
+  } else m._acc = undefined;
+}
+function updatePad(dt) {
+  let snap = readPads();
+  const remoteFresh = remotePad && performance.now() - remotePad.at < 300;
+  if (remoteFresh && (!snap || !document.hasFocus())) snap = remotePad.snap;   // the output window has focus
+  padSnap = snap;
+  if (!snap) { padRowsActive(null); return; }
+
+  if (learning) {
+    if (performance.now() > learning.until) { learning = null; renderPadRows(); }
+    else {
+      const m = pad.maps[learning.i], base = learning.base;
+      let got = null;
+      snap.b.forEach((v, i) => { if (!got && v > 0.6 && (base.b[i] || 0) < 0.3) got = 'b' + i; });
+      snap.a.forEach((v, i) => {
+        if (!got && Math.abs(v - (base.a[i] || 0)) > 0.6) {
+          got = 'a' + i + ((ACTION[m.action] || [])[3] === 'axis' ? '' : (v < 0 ? '-' : '+'));
+        }
+      });
+      if (got && m) {
+        m.input = got; learning = null;
+        if ((ACTION[m.action] || [])[3] === 'axis' && /^a\d+$/.test(got) && m.mode === 'push') m.mode = 'nudge';
+        savePad(); renderPadRows();
+        status('Assigned ' + inputLabel(got, snap.std));
+      }
+      padRowsActive(snap);
+      return;   // inputs do nothing while learning
+    }
+  }
+  if (!pad.enabled) { padRowsActive(snap); return; }
+
+  let vx = 0, vy = 0;
+  pad.maps.forEach(m => {
+    const a = ACTION[m.action];
+    if (!a || !m.input) return;
+    const v = inputValue(snap, m.input);
+    const down = Math.abs(v) > 0.5;
+    const kind = a[3];
+    if (kind === 'axis') {
+      if (m.action === 'cursorX') vx += v;
+      else if (m.action === 'cursorY') vy += v;
+      else padSlider(m, v, dt);
+    } else if (kind === 'press') {
+      if (down && !m._down) padPress(m.action);
+    } else if (m.action === 'rupture') {
+      if (down && !m._down) {
+        padRupType = pickEffect();
+        rupture(crossX, crossY, 1, padRupType);
+        padLastSmear = clock(); padLastPos = [crossX, crossY];
+        if (vid && (P.vidMode === 2 || P.vidMode === 5)) vidJump();
+      } else if (down) {
+        const now = clock();
+        if (now - padLastSmear > 0.045 && Math.hypot(crossX - padLastPos[0], crossY - padLastPos[1]) > 0.025) {
+          rupture(crossX, crossY, 0.42, padRupType, P.radius * 0.7);
+          padLastSmear = now; padLastPos = [crossX, crossY];
+        }
+      }
+      if (down) crossUntil = performance.now() + 1500;
+    } else {   // hold:*
+      if (down && !m._down) holdStart(m);
+      else if (!down && m._down) holdEnd(m);
+    }
+    m._down = down;
+  });
+  if (vx || vy) {
+    const A = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    crossX = Math.max(-A / 2, Math.min(A / 2, crossX + vx * dt * 0.9 * pad.speed));
+    crossY = Math.max(-0.5, Math.min(0.5, crossY - vy * dt * 0.9 * pad.speed));
+    crossUntil = performance.now() + 1500;
+  }
+  padRowsActive(snap);
+}
+function crossState() { return pad.cross && performance.now() < crossUntil ? [crossX, crossY] : null; }
+let crossEl = null;
+function showCross(c) {
+  if (!crossEl) { crossEl = h('div', { id: 'cross', 'aria-hidden': 'true' }); document.body.appendChild(crossEl); }
+  if (!c) { crossEl.classList.remove('show'); return; }
+  const W = window.innerWidth, H = window.innerHeight;
+  crossEl.style.transform = 'translate(' + (W / 2 + c[0] * H).toFixed(1) + 'px,' + (H / 2 - c[1] * H).toFixed(1) + 'px)';
+  crossEl.classList.add('show');
+}
+// the output window has the focus during a show, so it passes the controller on
+function forwardPad() {
+  if (!document.hasFocus()) return;
+  const snap = readPads();
+  if (snap) postUp({ app: APP, type: 'pad', snap });
+}
+
+/* ---------- controller UI ---------- */
+function padStatusText() {
+  if (padBlocked) return 'This page is not allowed to read controllers here. On your own site over https it works in Chrome, Edge and Firefox.';
+  const s = padSnap;
+  if (!s) return 'No controller found. Connect one and press any button on it.';
+  return 'Connected: ' + s.id.replace(/\s*\(.*?\)\s*/g, ' ').trim() + (s.std ? '' : ' (non-standard layout: inputs show as numbers)');
+}
+let lastPadText = '';
+function padSettingsUI() {
+  if (!padNoteEl) return;
+  const t = padStatusText();
+  if (t !== lastPadText) { padNoteEl.textContent = t; lastPadText = t; }
+  ['enabled', 'deadzone', 'speed', 'cross'].forEach(k => { const c = controls['pad.' + k]; if (c) c.set(pad[k]); });
+}
+function padControl(key, label, min, max, step) {
+  const id = 'c-pad-' + key;
+  if (min === 'tog') {
+    const b = h('button', { id, class: 'btn', type: 'button', onclick: () => { pad[key] = pad[key] ? 0 : 1; savePad(); padSettingsUI(); } });
+    controls['pad.' + key] = { set: v => { b.setAttribute('aria-pressed', String(!!v)); b.textContent = v ? 'On' : 'Off'; } };
+    return h('div', { class: 'row wide' }, [h('label', { for: id, text: label }), h('div', {}, [b])]);
+  }
+  const inp = h('input', { id, type: 'range', min, max, step, oninput: () => { pad[key] = +inp.value; out.textContent = (+inp.value).toFixed(2); savePad(); } });
+  const out = h('output', { for: id });
+  controls['pad.' + key] = { set: v => { inp.value = v; out.textContent = (+v).toFixed(2); } };
+  return h('div', { class: 'row' }, [h('label', { for: id, text: label }), inp, out]);
+}
+function actionSelect(m) {
+  const sel = h('select', { 'aria-label': 'Action' });
+  const groups = {};
+  PAD_ACTIONS.forEach(([id, label, group]) => {
+    let parent = sel;
+    if (group) { if (!groups[group]) { groups[group] = h('optgroup', { label: group }); sel.appendChild(groups[group]); } parent = groups[group]; }
+    parent.appendChild(h('option', { value: id, text: label }));
+  });
+  sel.value = m.action;
+  sel.addEventListener('change', () => {
+    holdEnd(m);
+    m.action = sel.value;
+    m.mode = ACTION[m.action][3] === 'axis' && !/^cursor/.test(m.action) ? (isFullAxis(m.input) ? 'nudge' : 'push') : null;
+    savePad(); renderPadRows();
+  });
+  return sel;
+}
+function renderPadRows() {
+  if (!padRowsEl) return;
+  padRowsEl.innerHTML = '';
+  padRowEls.length = 0;
+  const std = padSnap ? padSnap.std : true;
+  pad.maps.forEach((m, i) => {
+    const isLearning = learning && learning.i === i;
+    const inBtn = h('button', { class: 'btn padin' + (isLearning ? ' learn' : ''), type: 'button',
+      text: isLearning ? 'Press…' : inputLabel(m.input, std), title: 'Click, then press a button or move a stick',
+      'aria-label': 'Input: ' + inputLabel(m.input, std) + '. Click to learn a new one',
+      onclick: () => startLearn(i) });
+    const kids = [inBtn, actionSelect(m), h('button', { class: 'btn x', type: 'button', text: '×', 'aria-label': 'Remove this mapping',
+      onclick: () => { holdEnd(m); pad.maps.splice(i, 1); if (learning) learning = null; savePad(); renderPadRows(); } })];
+    if (ACTION[m.action] && ACTION[m.action][3] === 'axis' && !/^cursor/.test(m.action)) {
+      const ms = h('select', { class: 'mode', 'aria-label': 'How the input moves the slider' });
+      [['nudge', 'Nudge · moves it, it stays'], ['push', 'Push · swells, springs back'], ['set', 'Set · follows the input']]
+        .forEach(([v, t]) => ms.appendChild(h('option', { value: v, text: t })));
+      ms.value = m.mode || (isFullAxis(m.input) ? 'nudge' : 'push');
+      ms.addEventListener('change', () => { m.mode = ms.value; m._base = m._acc = m._last = undefined; savePad(); });
+      kids.push(ms);
+    }
+    const row = h('div', { class: 'padrow' }, kids);
+    row._on = false;
+    padRowEls.push(row);
+    padRowsEl.appendChild(row);
+  });
+}
+function padRowsActive(snap) {
+  padSettingsUI();
+  if (panel.hidden) return;
+  pad.maps.forEach((m, i) => {
+    const row = padRowEls[i];
+    if (!row) return;
+    const on = !!(snap && m.input && Math.abs(inputValue(snap, m.input)) > 0.3);
+    if (on !== row._on) { row._on = on; row.classList.toggle('on', on); }
+  });
+}
+function startLearn(i) {
+  if (!padSnap) { status('Connect a controller and press any button on it first.'); return; }
+  learning = { i, base: { b: padSnap.b.slice(), a: padSnap.a.slice() }, until: performance.now() + 8000 };
+  renderPadRows();
+  status('Press a button or move a stick on the controller');
+}
+function extraPad() {
+  padNoteEl = h('p', { class: 'note' });
+  padRowsEl = h('div', { class: 'sec', style: 'padding:0;gap:6px' });
+  loadPad();
+  const box = h('div', { class: 'sec', style: 'padding:0;gap:9px' }, [
+    padNoteEl,
+    padControl('enabled', 'Controller', 'tog'),
+    padControl('deadzone', 'Dead zone', 0, 0.6, 0.01),
+    padControl('speed', 'Cross speed', 0.2, 3, 0.01),
+    padControl('cross', 'Aiming cross', 'tog'),
+    h('div', { class: 'padhead' }, [h('span', { text: 'Input' }), h('span', { text: 'Does' })]),
+    padRowsEl,
+    h('div', { class: 'btns' }, [
+      h('button', { class: 'btn', type: 'button', text: 'Add mapping', onclick: () => { pad.maps.push({ input: '', action: 'none', mode: null }); savePad(); renderPadRows(); startLearn(pad.maps.length - 1); } }),
+      h('button', { class: 'btn', type: 'button', text: 'Default mapping', onclick: () => { pad.maps.forEach(holdEnd); pad.maps = defaultMaps(); savePad(); renderPadRows(); status('Default mapping restored'); } }),
+      h('button', { class: 'btn', type: 'button', text: 'Clear all', onclick: () => { pad.maps.forEach(holdEnd); pad.maps = []; savePad(); renderPadRows(); } }),
+    ]),
+    h('p', { class: 'note', text: 'Click an input to learn a new one, then press the button or move the stick. Names follow the Xbox layout; on PlayStation A is ✕, B is ○, X is □ and Y is △. The mapping is saved in this browser and goes into exported pages.' }),
+  ]);
+  padSettingsUI();
+  renderPadRows();
+  return box;
+}
+window.addEventListener('gamepadconnected', e => { status('Controller connected: ' + e.gamepad.id.replace(/\s*\(.*?\)\s*/g, ' ').trim()); });
+window.addEventListener('gamepaddisconnected', () => { status('Controller disconnected'); });
+
 /* ---------- color through ---------- */
 const colorRows = [];
 let colorNoteEl = null;
@@ -1501,7 +1912,7 @@ function extraPresets() {
     h('div', { class: 'row wide' }, [h('label', { for: 'c-pname', text: 'Name' }), nameIn]),
     h('div', { class: 'btns' }, [
       h('button', { class: 'btn', type: 'button', text: 'Save', onclick: () => {
-        const saved = readSaved(); saved[nm()] = currentPreset(nm(), false);
+        const saved = readSaved(); saved[nm()] = currentPreset(nm(), false, false);
         if (writeSaved(saved)) { refreshPresetList(nm()); status('Saved "' + nm() + '" in this browser'); }
         else status('This browser blocked saving. Use Download .json instead.');
       } }),
@@ -1583,7 +1994,7 @@ fsBtn.addEventListener('click', toggleFullscreen);
 }));
 const panel = h('div', { id: 'panel', role: 'region', 'aria-label': 'Controls' });
 panel.hidden = true;
-const EXTRAS = { color: extraColor, screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
+const EXTRAS = { pad: extraPad, color: extraColor, screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
 SCHEMA.forEach(([title, open, specs, extra]) => {
   const sec = h('div', { class: 'sec' });
   const top = extra === 'photo' || extra === 'audio' || extra === 'video';
@@ -1743,6 +2154,7 @@ function computeState(c, dt) {
     echo: P.echo, echoMode: P.echoMode, echoZoom, echoSpin: P.echoSpin,
     ripA, ripB, depth: P.depth, dither: P.dither, invert: P.invert, tint: P.tint,
     colN: P.colors, colMatch: P.colorMatch, cols: [P.col1, P.col2, P.col3].flatMap(hexRGB), thrs: [P.thr1, P.thr2, P.thr3],
+    cross: crossState(),
     vid: vid ? { token: vidToken, t: vid.currentTime, playing: !vid.paused && !vid.seeking, rate: vid.playbackRate, wall: Date.now() } : null,
   };
 }
@@ -1835,14 +2247,17 @@ function outFrame() {
     outFresh = false;
   }
   render(S, idA, idB, outVid && outVid.videoWidth ? outVid.videoWidth / outVid.videoHeight : 16 / 9);
+  showCross(S.cross);
 }
 
 let blanked = false;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  if (MODE_OUTPUT && slave) outFrame();
+  if (MODE_OUTPUT && slave) { forwardPad(); outFrame(); }
   else if (ready) {
+    updatePad(dt);
     const S = computeState(clock(), dt);
+    showCross(S.cross);
     // newest video frame into the photo texture
     if (vid && vidReady && vid.readyState >= 2 && (vidFrameNew || !vidRVFC)) {
       try { upload(photoTexA, 2, vid); texIdA = 'v'; }
