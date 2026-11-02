@@ -200,6 +200,8 @@ const BASE = {
   autoRupture: 6, evolve: 0.3, shuffle: 0,
   audioGain: 1, audioDrive: 0.6, beats: 1,
   shapeMode: 0, shapePick: 0, shapeFps: 6, shapeCell: 1,
+  fxBend: 0, fxTune: 0, fxBroken: 0, fxVHS: 0, fxCRT: 0, fxRGB: 0, fxGlow: 0, fxAudio: 0,
+  fxVHS2: 0, fxGhost: 0, fxGhostDist: 0.3, fxComb: 0, fxCombLines: 2, fxCombDelay: 12, fxMosh: 0, fxMoshBlock: 16, fxColor: 0,
   transTime: 3, transCurve: 0, sceneMix: 0, sceneKeys: 0,
   colors: 0, colorMatch: 0, col1: 0xE0322B, col2: 0x2F6BFF, col3: 0xF2C14E, thr1: 0.45, thr2: 0.6, thr3: 0.75,
 };
@@ -249,6 +251,15 @@ const SCHEMA = [
   ['Audio', false, [
     ['audioGain', 'Gain', 0, 4, 0.01], ['audioDrive', 'Drive', 0, 1, 0.01], ['beats', 'Beat hits', 'tog'],
   ], 'audio'],
+  ['TV FX', false, [
+    ['fxBend', 'Bend', 0, 1, 0.01], ['fxTune', 'Bad tuning', 0, 1, 0.01], ['fxBroken', 'Broken', 0, 1, 0.01],
+    ['fxVHS', 'VHS tape', 0, 1, 0.01], ['fxVHS2', 'VHS overdrive', 0, 1, 0.01],
+    ['fxGhost', 'Ghosting', 0, 1, 0.01], ['fxGhostDist', 'Ghost distance', 0, 1, 0.01],
+    ['fxComb', 'Comb', 0, 0.95, 0.01], ['fxCombLines', 'Comb teeth (px)', 1, 24, 1], ['fxCombDelay', 'Comb delay (px)', 0, 60, 1],
+    ['fxMosh', 'Datamosh', 0, 1, 0.01], ['fxMoshBlock', 'Mosh blocks (px)', 4, 64, 1],
+    ['fxCRT', 'CRT tube', 0, 1, 0.01], ['fxRGB', 'RGB split', 0, 1, 0.01], ['fxGlow', 'Glow', 0, 1, 0.01],
+    ['fxColor', 'FX color', 0, 1, 0.01], ['fxAudio', 'Audio kick', 0, 1, 0.01],
+  ], 'fx'],
   ['Scenes', false, [
     ['sceneMix', 'Mixer A ⇄ B', 0, 1, 0.001], ['transTime', 'Time (s)', 0, 20, 0.1], ['transCurve', 'Curve', -1, 1, 0.01], ['sceneKeys', 'Keyboard map', 'tog'],
   ], 'scenes'],
@@ -603,8 +614,12 @@ uniform float uPix, uLevels, uDither, uInvert;
 uniform vec3 uDark, uLight;
 uniform float uColN;
 uniform vec3 uCols[3];
-void main(){
-  vec2 cell = floor(gl_FragCoord.xy / uPix);
+uniform vec2 uOutRes;
+uniform float uClk, uFxBend, uFxTune, uFxBroken, uFxCRT, uFxRGB, uFxVHS, uFxGlow, uFxPower, uFxVHS2, uFxGhost, uFxGhostDist, uFxColor;
+
+// the finished picture at a pixel position: bit depth, dither, tint, colors
+vec3 baseAt(vec2 fc){
+  vec2 cell = floor(fc / uPix);
   vec4 sc = texture2D(uScene, (min(cell, uSceneRes - 1.0) + 0.5) / uSceneRes);
   float v = sc.r;
   if (uInvert > 0.5) v = 1.0 - v;
@@ -625,6 +640,145 @@ void main(){
     float k = uLevels > 1.5 ? step(thr, sc.g) : sc.g;     // dithered edge at low bit depths
     col = mix(col, mix(pcol * 0.28, pcol, v), k);
   }
+  return col;
+}
+vec3 sampleUV(vec2 uv){ return baseAt(uv * uOutRes); }
+
+/* TV FX: everything below treats the finished picture as a TV signal */
+void main(){
+  vec2 fc = gl_FragCoord.xy;
+  vec2 uv = fc / uOutRes;
+  // frame and event counters stay small so the noise stays sharp during long shows
+  float t = uClk, fr = mod(floor(t * 30.0), 997.0);
+  float boost = 0.0;
+
+  // broken: now and then the set misbehaves (picture slips, squashes, bands shift, blacks out)
+  float evSlot = mod(floor(t * 1.7), 991.0), evFrac = fract(t * 1.7);
+  bool evOn = hash(vec2(evSlot, 3.7)) < uFxBroken * 0.55;
+  float evType = hash(vec2(evSlot, 9.1));
+  if (evOn){
+    if (evType < 0.25) uv.y = fract(uv.y + (hash(vec2(evSlot, 1.3)) - 0.5) * 0.7 * (1.0 - evFrac));
+    else if (evType < 0.5){ float k = mix(0.12, 1.0, evFrac * evFrac); uv.y = (uv.y - 0.5) / k + 0.5; boost = (1.0 - evFrac) * 0.35; }
+    else if (evType < 0.75){ float b = floor(uv.y * 9.0); uv.x += (hash(vec2(b, evSlot)) - 0.5) * 0.3 * step(0.45, hash(vec2(b, evSlot + 1.0))); }
+  }
+
+  // power off: the picture collapses to a line, then to a dot
+  if (uFxPower > 0.001){
+    float sy = mix(1.0, 0.003, smoothstep(0.0, 0.55, uFxPower));
+    float sx = mix(1.0, 0.002, smoothstep(0.55, 1.0, uFxPower));
+    uv = (uv - 0.5) / vec2(sx, sy) + 0.5;
+    boost += smoothstep(0.15, 0.55, uFxPower) * 1.3;
+  }
+
+  // CRT curvature
+  vec2 cc = uv - 0.5;
+  cc *= 1.0 + (uFxCRT * 0.24 + uFxBend * 0.06) * dot(cc, cc);
+  uv = cc + 0.5;
+
+  // bend: slow waves bend the vertical lines, with a magnetic pull at the top
+  if (uFxBend > 0.001){
+    uv.x += uFxBend * (0.016 * sin(uv.y * 5.0 + t * 1.1) + 0.007 * sin(uv.y * 19.0 - t * 2.3)
+          + 0.05 * pow(max(0.0, 1.0 - (1.0 - uv.y) * 4.0), 3.0) * sin(t * 0.8));
+  }
+
+  // bad tuning: lines jitter and the picture rolls
+  float rs = smoothstep(0.45, 1.0, uFxTune), roll = 0.0;
+  if (uFxTune > 0.001){
+    float line = floor(uv.y * uOutRes.y * 0.5);
+    uv.x += uFxTune * (hash(vec2(line, fr)) - 0.5) * 0.02 * (0.3 + step(0.85, hash(vec2(floor(line / 24.0), fr))));
+    roll = fract(t * 0.23) * rs;
+    uv.y = fract(uv.y + roll);
+  }
+
+  // VHS: wobble, head-switching noise at the bottom, a tracking band drifting up; overdrive pushes it all further
+  float vd = uFxVHS2, vv = uFxVHS + vd;
+  if (vv > 0.001){
+    float ln = floor(uv.y * uOutRes.y);
+    uv.x += (uFxVHS + vd * 2.5) * 0.0025 * sin(uv.y * 160.0 + t * 7.0) + vd * 0.006 * sin(uv.y * 6.0 + t * 0.9);
+    if (uv.y < 0.035 + vd * 0.07) uv.x += vv * (0.03 + 0.05 * hash(vec2(ln, fr)));
+    float tb = 1.0 - smoothstep(0.0, 0.025 + vd * 0.06, abs(uv.y - fract(t * 0.05)));
+    uv.x += tb * vv * (hash(vec2(ln, fr)) - 0.5) * (0.07 + vd * 0.12);
+    if (vd > 0.001){
+      // tape crinkle: whole bands jump sideways
+      float cb = floor(uv.y * 36.0), s2 = mod(floor(t * 6.0), 991.0);
+      if (hash(vec2(cb, s2)) < vd * 0.18) uv.x += (hash(vec2(cb, s2 + 3.0)) - 0.5) * 0.1 * vd;
+    }
+  }
+
+  bool outside = uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0;
+
+  // RGB split (ref keeps the picture's own colors, for FX color)
+  vec3 ref = sampleUV(uv);
+  vec3 col = ref;
+  if (uFxRGB > 0.001){
+    vec2 o = vec2(uFxRGB * 0.008, 0.0) + (uv - 0.5) * uFxRGB * 0.012;
+    col = vec3(sampleUV(uv + o).r, ref.g, sampleUV(uv - o).b);
+  }
+
+  // ghosting: a faint second and third copy, like a bad aerial picking up reflections
+  if (uFxGhost > 0.001){
+    vec2 gd = vec2(0.006 + uFxGhostDist * 0.05, 0.0);
+    col = col * (1.0 - 0.25 * uFxGhost) + (sampleUV(uv - gd) * 0.45 + sampleUV(uv - gd * 2.0) * 0.18) * uFxGhost;
+  }
+
+  // VHS smear: bright things bleed to the right; overdrive smears further, crushes and drops out
+  if (vv > 0.001){
+    vec2 px = vec2(1.0 / uOutRes.x, 0.0);
+    vec3 sm = (sampleUV(uv - px * 3.0) + sampleUV(uv - px * 7.0) + sampleUV(uv - px * 12.0)) / 3.0;
+    if (vd > 0.001) sm = mix(sm, (sm + sampleUV(uv - px * 20.0) + sampleUV(uv - px * 32.0)) / 3.0, vd);
+    col = mix(col, max(col, sm * 0.92), min(1.0, uFxVHS * 0.75 + vd * 0.6));
+    if (vd > 0.001){
+      col = mix(col, smoothstep(0.08, 0.85, col), vd * 0.6);
+      float drop = step(1.0 - vd * 0.006, hash(vec2(floor(fc.x / 28.0), floor(fc.y)) * 0.37 + fract(fr * 0.618034) * 41.0));
+      col = mix(col, uLight, drop);
+      col = mix(col, mix(uDark, uLight, hash(floor(fc / 2.0) * 0.53 + fract(fr * 0.381966) * 57.0)), vd * 0.12);
+    }
+  }
+
+  // glow
+  if (uFxGlow > 0.001){
+    vec3 g = vec3(0.0);
+    for (int i = 0; i < 8; i++){
+      float a = float(i) * 0.7854;
+      vec2 d = vec2(cos(a), sin(a)) / uOutRes;
+      g += sampleUV(uv + d * 5.0) + sampleUV(uv + d * 13.0);
+    }
+    col += max(g / 16.0 - 0.25, 0.0) * uFxGlow * 1.6;
+  }
+
+  // bad tuning: snow, bright streaks, the dark sync bar rolling through
+  if (uFxTune > 0.001){
+    float sn = hash(floor(fc / 1.5) * 0.731 + fract(fr * 0.618034) * 97.0);
+    col = mix(col, mix(uDark, uLight, sn), uFxTune * 0.55);
+    col += uLight * step(0.985, hash(vec2(floor(fc.y / 2.0), fr))) * uFxTune * 0.35 * hash(vec2(floor(fc.x / 40.0), fr));
+    float d = abs(fract(fc.y / uOutRes.y - (1.0 - roll) + 0.5) - 0.5);
+    col *= mix(1.0, smoothstep(0.0, 0.05, d), rs);
+  }
+
+  // broken: flicker and blackouts
+  if (uFxBroken > 0.001){
+    col *= 1.0 - uFxBroken * 0.18 * hash(vec2(fr, 5.0));
+    if (evOn && evType >= 0.75) col *= step(0.45, hash(vec2(fr, 2.0)));
+  }
+
+  // CRT: scanlines, phosphor mask, vignette
+  if (uFxCRT > 0.001){
+    col *= 1.0 - uFxCRT * 0.4 * (0.5 + 0.5 * cos(uv.y * uOutRes.y * 3.14159));
+    float m = mod(fc.x, 3.0);
+    vec3 mask = m < 1.0 ? vec3(1.0, 0.72, 0.72) : (m < 2.0 ? vec3(0.72, 1.0, 0.72) : vec3(0.72, 0.72, 1.0));
+    col *= mix(vec3(1.0), mask * 1.18, uFxCRT * 0.6);
+    col *= mix(1.0, clamp(1.0 - dot(cc * 1.35, cc * 1.35), 0.0, 1.0), uFxCRT);
+  }
+
+  // FX color: at 0 the effects keep the picture's own colors and only change brightness
+  if (uFxColor < 0.999){
+    float l = dot(col, vec3(0.299, 0.587, 0.114)), lr = dot(ref, vec3(0.299, 0.587, 0.114));
+    vec3 hue = lr > 0.05 ? ref / lr : uLight / max(dot(uLight, vec3(0.299, 0.587, 0.114)), 0.05);
+    col = mix(min(hue * l, vec3(1.0)), col, uFxColor);
+  }
+  col = mix(col, uLight, clamp(boost, 0.0, 1.0) * 0.85);
+  if (outside) col = vec3(0.0);
+  col *= 1.0 - smoothstep(0.9, 1.0, uFxPower);
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -649,10 +803,47 @@ function uniforms(p, names) {
   names.forEach(n => { u[n] = gl.getUniformLocation(p, n); });
   return u;
 }
-let sceneProg, outProg;
+// a third pass that remembers the last frame, for datamosh and the comb filter
+const POST_FS = COMMON + `
+uniform sampler2D uCur, uHist, uNoise;
+uniform vec2 uRes;
+uniform float uClk, uHistOk, uMosh, uMoshBlock, uComb, uCombLines, uCombDelay;
+void main(){
+  vec2 fc = gl_FragCoord.xy, uv = fc / uRes;
+  vec3 cur = texture2D(uCur, uv).rgb;
+  if (uHistOk < 0.5){ gl_FragColor = vec4(cur, 1.0); return; }
+  vec3 col = cur;
+  if (uMosh > 0.001){
+    // datamosh: some blocks stop taking new frames and keep dragging the old picture along a motion field
+    vec2 blk = floor(fc / uMoshBlock);
+    float slot = mod(floor(uClk * 1.5), 997.0);
+    float held = step(hash(blk * 0.173 + vec2(slot * 0.71, slot * 0.31)), uMosh * 0.85);
+    held = max(held, step(1.0 - uMosh * 0.3, hash(vec2(slot, 4.2))));      // a lost keyframe: everything drags
+    vec2 nq = blk * uMoshBlock / uRes.y * 0.15 + vec2(slot * 0.037, slot * 0.021);
+    float ang = texture2D(uNoise, nq).r * 12.566;
+    float sp = (1.0 + 3.0 * uMosh) * (0.4 + texture2D(uNoise, nq + 0.5).g);
+    vec2 mv = floor(vec2(cos(ang), sin(ang)) * sp + 0.5) / uRes;
+    vec3 dragged = texture2D(uHist, uv - mv).rgb;
+    vec3 res = (cur - texture2D(uCur, uv - mv).rgb) * 0.35;   // residue: new edges still bleed through
+    col = mix(cur, clamp(dragged + res, 0.0, 1.0), held);
+  }
+  if (uComb > 0.001){
+    // comb filter, like audio: y = x + g * y[n - D]. Alternate teeth carry the delayed copy, the others the sum.
+    float odd = step(1.0, mod(floor(fc.y / max(1.0, uCombLines)), 2.0));
+    float d = floor(uCombDelay * (0.6 + 0.4 * sin(uClk * 2.1 + fc.y * 0.013)) + 0.5);
+    vec3 delayed = texture2D(uHist, uv - vec2(d, 0.0) / uRes).rgb;
+    vec3 sum = (col + delayed * uComb) / (1.0 + uComb);
+    col = mix(sum, mix(col, delayed, uComb * 0.92), odd);
+  }
+  gl_FragColor = vec4(col, 1.0);
+}`;
+const BLIT_FS = 'precision highp float; uniform sampler2D uTex; uniform vec2 uRes; void main(){ gl_FragColor = texture2D(uTex, gl_FragCoord.xy / uRes); }';
+let sceneProg, outProg, postProg, blitProg;
 try {
   sceneProg = program(SCENE_FS);
   outProg = program(OUT_FS);
+  postProg = program(POST_FS);
+  blitProg = program(BLIT_FS);
 } catch (err) {
   console.error(err);
   document.body.insertAdjacentHTML('beforeend', '<div class="fail">The graphics card could not compile this visual.</div>');
@@ -669,7 +860,10 @@ US.uColN = gl.getUniformLocation(sceneProg, 'uColN');
 US.uKey = gl.getUniformLocation(sceneProg, 'uKey');
 US.uCol = gl.getUniformLocation(sceneProg, 'uCol[0]');
 US.uThr = gl.getUniformLocation(sceneProg, 'uThr[0]');
-const UO = uniforms(outProg, ['uScene', 'uSceneRes', 'uPix', 'uLevels', 'uDither', 'uInvert', 'uDark', 'uLight', 'uColN']);
+const UO = uniforms(outProg, ['uScene', 'uSceneRes', 'uPix', 'uLevels', 'uDither', 'uInvert', 'uDark', 'uLight', 'uColN',
+  'uOutRes', 'uClk', 'uFxBend', 'uFxTune', 'uFxBroken', 'uFxCRT', 'uFxRGB', 'uFxVHS', 'uFxGlow', 'uFxPower', 'uFxVHS2', 'uFxGhost', 'uFxGhostDist', 'uFxColor']);
+const UP = uniforms(postProg, ['uCur', 'uHist', 'uNoise', 'uRes', 'uClk', 'uHistOk', 'uMosh', 'uMoshBlock', 'uComb', 'uCombLines', 'uCombDelay']);
+const UB = uniforms(blitProg, ['uTex', 'uRes']);
 UO.uCols = gl.getUniformLocation(outProg, 'uCols[0]');
 
 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -719,6 +913,19 @@ function makeTarget(w, h) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return { tex, fb };
 }
+// full-size buffers for the temporal FX, made only while datamosh or comb is on
+let post = null;
+function freePost() {
+  if (!post) return;
+  [post.cur, post.hist[0], post.hist[1]].forEach(t => { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); });
+  post = null;
+}
+function ensurePost() {
+  const W = canvas.width, H = canvas.height;
+  if (post && post.w === W && post.h === H) return;
+  freePost();
+  post = { w: W, h: H, cur: makeTarget(W, H), hist: [makeTarget(W, H), makeTarget(W, H)], i: 0, ok: false };
+}
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = Math.max(1, Math.floor(canvas.clientWidth * dpr));
@@ -727,6 +934,7 @@ function resize() {
   // the scene renders once per visible pixel block, never finer than one CSS pixel
   pixOut = Math.max(1, P.pixel) * dpr;
   const sw = Math.max(1, Math.ceil(W / pixOut)), sh = Math.max(1, Math.ceil(H / pixOut));
+  if (post && (post.w !== W || post.h !== H)) freePost();
   if (sw !== sceneW || sh !== sceneH || !targets.length) {
     targets.forEach(t => { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); });
     sceneW = sw; sceneH = sh;
@@ -1092,6 +1300,7 @@ function updateAudio(c) {
     rupture(x, y, Math.min(1.6, bass * 1.4), pickEffect());
     if (vid && (P.vidMode === 2 || P.vidMode === 5)) vidJump();
     au.lastBeat = c;
+    fxHit = 1;
   }
   au.bassAvg += (bass - au.bassAvg) * 0.04;
   if (meterEl) meterEl.style.width = Math.round(au.level * 100) + '%';
@@ -1522,6 +1731,64 @@ if (MODE_OUTPUT) {
   window.addEventListener('message', e => { if (!window.opener || e.source === window.opener) onOutMsg(e.data); });
   if (bc) bc.addEventListener('message', e => onOutMsg(e.data));
   setInterval(() => postUp({ app: APP, type: 'ping' }), 2000);
+}
+
+/* ---------- TV FX ---------- */
+const tv = { target: 0, value: 0 };
+let fxHit = 0, tvBtn = null;
+const FX_LOOKS = [
+  ['Clean signal', {}],
+  ['Bent signal', { fxBend: 0.65, fxCRT: 0.15 }],
+  ['Bad tuning', { fxTune: 0.55, fxBend: 0.25 }],
+  ['Lost channel', { fxTune: 0.95, fxBend: 0.4 }],
+  ['Broken TV', { fxBroken: 0.7, fxTune: 0.2, fxBend: 0.35, fxCRT: 0.4 }],
+  ['Old CRT', { fxCRT: 0.85, fxGlow: 0.35, fxBend: 0.1 }],
+  ['VHS tape', { fxVHS: 0.7, fxRGB: 0.25, fxTune: 0.1, fxGlow: 0.2 }],
+  ['VHS overdrive', { fxVHS: 0.7, fxVHS2: 0.8, fxRGB: 0.3, fxTune: 0.15, fxGlow: 0.25 }],
+  ['Bad aerial', { fxGhost: 0.7, fxGhostDist: 0.35, fxTune: 0.25 }],
+  ['Comb filter', { fxComb: 0.6, fxCombLines: 2, fxCombDelay: 14 }],
+  ['Datamosh', { fxMosh: 0.55, fxMoshBlock: 16 }],
+  ['Meltdown', { fxBend: 0.8, fxTune: 0.6, fxBroken: 0.8, fxVHS: 0.5, fxVHS2: 0.5, fxGhost: 0.4, fxComb: 0.3, fxMosh: 0.4, fxCRT: 0.6, fxRGB: 0.6, fxGlow: 0.5 }],
+];
+const FX_KEYS = ['fxBend', 'fxTune', 'fxBroken', 'fxVHS', 'fxVHS2', 'fxGhost', 'fxComb', 'fxMosh', 'fxCRT', 'fxRGB', 'fxGlow'];
+function fxState(dt, drive) {
+  // the power switch eases over about 0.7 s; audio kicks push tuning, bending and breakage
+  const step = dt / 0.7;
+  tv.value = tv.value < tv.target ? Math.min(tv.target, tv.value + step) : Math.max(tv.target, tv.value - step);
+  fxHit = Math.max(0, fxHit - dt * 4);
+  const k = (au.kind !== 'off' || au.vActive) ? P.fxAudio : 0;
+  const c1 = v => Math.max(0, Math.min(1, v));
+  return [
+    c1(P.fxBend + au.bass * k * 0.4),
+    c1(P.fxTune + au.bass * k * 0.5 + fxHit * k * 0.6),
+    c1(P.fxBroken + au.level * k * 0.6),
+    P.fxCRT, P.fxRGB, P.fxVHS, P.fxGlow, tv.value,
+    P.fxVHS2, P.fxGhost, P.fxGhostDist, P.fxColor,
+    c1(P.fxMosh + fxHit * k * 0.5), P.fxMoshBlock, P.fxComb, P.fxCombLines, P.fxCombDelay,
+  ];
+}
+function toggleTV() {
+  tv.target = tv.target > 0.5 ? 0 : 1;
+  if (tvBtn) tvBtn.textContent = tv.target ? 'Turn TV on' : 'Turn TV off';
+  status(tv.target ? 'TV off' : 'TV on');
+}
+function extraFx() {
+  const look = h('select', { id: 'c-fxlook', 'aria-label': 'Quick looks', onchange: () => {
+    const i = +look.value; look.value = '';
+    if (!isFinite(i) || !FX_LOOKS[i]) return;
+    const set = FX_LOOKS[i][1];
+    FX_KEYS.forEach(k => setParam(k, set[k] || 0));
+    ['fxGhostDist', 'fxCombLines', 'fxCombDelay', 'fxMoshBlock'].forEach(k => { if (k in set) setParam(k, set[k]); });
+    status('Look: ' + FX_LOOKS[i][0]);
+  } });
+  look.appendChild(h('option', { value: '', text: 'Quick looks…' }));
+  FX_LOOKS.forEach(([name], i) => look.appendChild(h('option', { value: i, text: name })));
+  tvBtn = h('button', { class: 'btn', type: 'button', text: 'Turn TV off', onclick: toggleTV });
+  return h('div', { class: 'sec', style: 'padding:0;gap:9px' }, [
+    h('p', { class: 'note', text: 'Sits on top of everything, like a TV showing the picture. Each amount slider at 0 is off; they stack. FX color at 0 keeps the effects in your palette; raise it for colored fringes. Audio kick lets bass and beats push the tuning, bend, breakage and datamosh.' }),
+    look,
+    h('div', { class: 'btns' }, [tvBtn, h('button', { class: 'btn', type: 'button', text: 'All off', onclick: () => FX_KEYS.forEach(k => setParam(k, 0)) })]),
+  ]);
 }
 
 /* ---------- shapes: draw your own pattern tile ---------- */
@@ -2174,6 +2441,7 @@ const RANGES = {};
   A('photoPrev', 'Previous photo', 'Play', 'press');
   A('vidJump', 'Video: jump', 'Play', 'press');
   A('panel', 'Show / hide controls', 'Play', 'press');
+  A('tvPower', 'TV off / on', 'Play', 'press');
   A('sceneNext', 'Next scene', 'Scenes', 'press');
   A('scenePrev', 'Previous scene', 'Scenes', 'press');
   A('hold:freeze', 'Freeze while held', 'Hold', 'hold');
@@ -2292,6 +2560,7 @@ function padPress(id) {
   else if (id === 'photoPrev') showPhoto(photoIdx - 1);
   else if (id === 'vidJump') vidJump();
   else if (id === 'panel') setPanel(panel.hidden);
+  else if (id === 'tvPower') toggleTV();
   else if (id === 'sceneNext') stepScene(1);
   else if (id === 'scenePrev') stepScene(-1);
   else if (id.startsWith('next:') || id.startsWith('prev:')) {
@@ -2571,6 +2840,10 @@ function extraColor() {
   const box = h('div', { class: 'sec', style: 'padding:0;gap:9px' }, [
     h('div', { class: 'crow head' }, [h('span', { text: '' }), h('span', { class: 'lbl', text: 'Pick' }), h('span', { class: 'lbl', text: 'Threshold' }), h('span', { text: '' })]),
     colorRow(1), colorRow(2), colorRow(3), colorNoteEl,
+    h('div', { class: 'btns' }, [h('button', { class: 'btn', type: 'button', text: 'Back to black & white', onclick: () => {
+      ['colors', 'tint', 'invert', 'fxRGB', 'fxColor'].forEach(k => setParam(k, 0));
+      status('Colors off, tint Bone, FX in the palette');
+    } })]),
   ]);
   return box;
 }
@@ -2719,10 +2992,10 @@ fsBtn.addEventListener('click', toggleFullscreen);
 }));
 const panel = h('div', { id: 'panel', role: 'region', 'aria-label': 'Controls' });
 panel.hidden = true;
-const EXTRAS = { pad: extraPad, color: extraColor, screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
+const EXTRAS = { fx: extraFx, pad: extraPad, color: extraColor, screen: extraScreen, rupture: extraRupture, photo: extraPhoto, video: extraVideo, autopilot: extraAutopilot, audio: extraAudio, presets: extraPresets };
 SCHEMA.forEach(([title, open, specs, extra]) => {
   const sec = h('div', { class: 'sec' });
-  const top = extra === 'photo' || extra === 'audio' || extra === 'video';
+  const top = extra === 'photo' || extra === 'audio' || extra === 'video' || extra === 'fx';
   if (extra === 'scenes') sec.appendChild(extraScenes(specs));
   else if (extra === 'shapes') sec.appendChild(extraShapes(specs));
   else {
@@ -2785,6 +3058,7 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'c' || e.key === 'C') { corner.hidden = !corner.hidden; fsBtn.hidden = corner.hidden; if (corner.hidden) setPanel(false); }
   else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
   else if (e.key === 'r' || e.key === 'R') randomize();
+  else if (e.key === 'o' || e.key === 'O') toggleTV();
   else if (e.key === 'ArrowRight') showPhoto(photoIdx + 1);
   else if (e.key === 'ArrowLeft') showPhoto(photoIdx - 1);
 });
@@ -2910,6 +3184,7 @@ function computeState(c, dt) {
     ripA, ripB, depth: P.depth, dither: P.dither, invert: P.invert, tint: P.tint,
     colN: P.colors, colMatch: P.colorMatch, cols: [P.col1, P.col2, P.col3].flatMap(hexRGB), thrs: [P.thr1, P.thr2, P.thr3],
     cross: crossState(), seed: noiseSeed, keymap: P.sceneKeys,
+    fx: fxState(dt, drive),
     vid: vid ? { token: vidToken, t: vid.currentTime, playing: !vid.paused && !vid.seeking, rate: vid.playbackRate, wall: Date.now() } : null,
   };
 }
@@ -2974,8 +3249,11 @@ function render(S, idA, idB, vAspect) {
   gl.uniform1fv(US.uThr, S.thrs || [0.5, 0.5, 0.5]);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-  // output pass: bit depth, dither, tint
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  // output pass: bit depth, dither, tint, TV FX
+  const fxv = S.fx || [];
+  const temporal = (fxv[12] || 0) > 0.001 || (fxv[14] || 0) > 0.001;
+  if (temporal) ensurePost(); else if (post) { post.ok = false; if (post) freePost(); }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, temporal ? post.cur.fb : null);
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.useProgram(outProg);
   gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, next.tex);
@@ -2990,7 +3268,38 @@ function render(S, idA, idB, vAspect) {
   gl.uniform3fv(UO.uLight, tint[1]);
   gl.uniform1f(UO.uColN, colN);
   gl.uniform3fv(UO.uCols, cols);
+  const fx = S.fx || [0, 0, 0, 0, 0, 0, 0, 0];
+  gl.uniform2f(UO.uOutRes, canvas.width, canvas.height);
+  gl.uniform1f(UO.uClk, S.c);
+  gl.uniform1f(UO.uFxBend, fx[0]); gl.uniform1f(UO.uFxTune, fx[1]); gl.uniform1f(UO.uFxBroken, fx[2]); gl.uniform1f(UO.uFxCRT, fx[3]);
+  gl.uniform1f(UO.uFxRGB, fx[4]); gl.uniform1f(UO.uFxVHS, fx[5]); gl.uniform1f(UO.uFxGlow, fx[6]); gl.uniform1f(UO.uFxPower, fx[7]);
+  gl.uniform1f(UO.uFxVHS2, fx[8] || 0); gl.uniform1f(UO.uFxGhost, fx[9] || 0); gl.uniform1f(UO.uFxGhostDist, fx[10] || 0);
+  gl.uniform1f(UO.uFxColor, fx[11] == null ? 1 : fx[11]);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  if (temporal) {
+    // temporal pass into the history buffer, then onto the screen
+    const hPrev = post.hist[post.i], hNext = post.hist[1 - post.i];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, hNext.fb);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.useProgram(postProg);
+    gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, post.cur.tex);
+    gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, hPrev.tex);
+    gl.uniform1i(UP.uCur, 4); gl.uniform1i(UP.uHist, 5); gl.uniform1i(UP.uNoise, 0);
+    gl.uniform2f(UP.uRes, canvas.width, canvas.height);
+    gl.uniform1f(UP.uClk, S.c);
+    gl.uniform1f(UP.uHistOk, post.ok ? 1 : 0);
+    gl.uniform1f(UP.uMosh, fx[12] || 0); gl.uniform1f(UP.uMoshBlock, fx[13] || 16);
+    gl.uniform1f(UP.uComb, fx[14] || 0); gl.uniform1f(UP.uCombLines, fx[15] || 2); gl.uniform1f(UP.uCombDelay, fx[16] || 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.useProgram(blitProg);
+    gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, hNext.tex);
+    gl.uniform1i(UB.uTex, 4);
+    gl.uniform2f(UB.uRes, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    post.i = 1 - post.i; post.ok = true;
+  }
   cur = 1 - cur;
 }
 
