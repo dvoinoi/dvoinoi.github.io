@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dvoinoi — technical rider</title>
+  <meta name="description" content="Dvoinoi technical rider — live electronic music + video art">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="stylesheet" href="../css/main.css">
+  <style>
+    /* ---- TOOLBAR ---- */
+
+    .rider-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+
+    .rider-bar .group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .rider-bar button,
+    .rider-bar a {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      text-transform: lowercase;
+      letter-spacing: 0.1em;
+      background: transparent;
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .rider-bar button:hover,
+    .rider-bar a:hover { color: var(--text); border-color: #3a3a3a; }
+
+    .rider-bar button.active { color: var(--text); border-color: var(--accent); }
+
+    .rider-bar .print { color: var(--accent); border-color: var(--accent); }
+    .rider-bar .print:hover { color: var(--bg); background: var(--accent); }
+
+    /* ---- RIDER ---- */
+
+    .rider h1 {
+      font-family: 'DM Mono', monospace;
+      font-size: 2.2rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .rider .doc-type {
+      font-size: 0.9rem;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      margin-top: 8px;
+    }
+
+    .rider .subtitle {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 12px;
+    }
+
+    .rider h2 {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin: 44px 0 12px;
+    }
+
+    .rider p,
+    .rider li {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      line-height: 1.8;
+    }
+
+    .rider table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 0.75rem;
+      line-height: 1.6;
+    }
+
+    .rider th,
+    .rider td {
+      text-align: left;
+      vertical-align: top;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rider th {
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: lowercase;
+      letter-spacing: 0.08em;
+      background: var(--surface);
+    }
+
+    .rider td:first-child { width: 32%; color: var(--text); }
+    .rider td { color: var(--text-dim); }
+
+    .rider ul.dots li { padding-left: 18px; position: relative; }
+    .rider ul.dots li::before { content: '—'; position: absolute; left: 0; color: var(--accent); }
+
+    .rider ul.checks li { padding-left: 26px; position: relative; }
+    .rider ul.checks li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.45em;
+      width: 11px;
+      height: 11px;
+      border: 1px solid var(--text-dim);
+    }
+
+    .rider .note {
+      font-style: italic;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .rider .contact { margin-top: 8px; }
+    .rider .contact a { color: var(--accent); }
+
+    @media (max-width: 640px) {
+      .rider td:first-child { width: 38%; }
+      .rider th, .rider td { padding: 8px; }
+    }
+
+    /* ---- PRINT ---- */
+
+    @page { size: A4; margin: 16mm 18mm; }
+
+    @media print {
+      * { animation: none !important; }
+
+      body {
+        background: #fff;
+        color: #111;
+        font-family: Helvetica, Arial, sans-serif;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .page { max-width: none; padding: 0; }
+      .site-header, .rider-bar { display: none; }
+
+      .rider h1 { font-family: Helvetica, Arial, sans-serif; font-size: 30pt; font-weight: 700; color: #111; }
+      .rider .doc-type { font-size: 15pt; font-weight: 700; letter-spacing: 0; color: #e8403a; margin-top: 2pt; }
+      .rider .subtitle { font-size: 10.5pt; color: #6b7280; margin-top: 10pt; }
+
+      .rider h2 {
+        font-size: 14pt;
+        font-weight: 700;
+        letter-spacing: 0;
+        color: #e8403a;
+        margin: 16pt 0 3pt;
+        break-after: avoid;
+      }
+
+      .rider p, .rider li { font-size: 10pt; line-height: 1.4; color: #111; }
+
+      .rider table { font-size: 9pt; line-height: 1.35; margin-top: 8pt; }
+      .rider tr { break-inside: avoid; }
+      .rider th, .rider td { padding: 4pt 6pt; border-bottom: none; }
+      .rider th { background: #111; color: #fff; font-weight: 700; text-transform: none; letter-spacing: 0; }
+      .rider tbody tr:nth-child(even) td { background: #f3f4f6; }
+      .rider td, .rider td:first-child { color: #111; }
+      .rider td:first-child { font-weight: 700; }
+
+      .rider ul { margin-left: 14pt; }
+      .rider ul.dots li::before { content: '•'; color: #111; }
+      .rider ul.checks li::before { border-color: #111; top: 0.3em; width: 8pt; height: 8pt; }
+
+      .rider .note { font-size: 9pt; color: #6b7280; border-top: none; margin-top: 12pt; padding-top: 0; }
+      .rider .contact { font-size: 9pt; color: #6b7280; }
+      .rider .contact a { color: #111; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="site-header">
+      <a class="site-title" href="../index.html">dvoinoi</a>
+      <nav class="site-nav">
+        <a href="../about.html">about</a>
+        <a href="../releases.html">releases</a>
+        <a href="./" class="active">rider</a>
+        <a href="https://www.instagram.com/dvoinoi_/">media</a>
+        <a href="mailto:dvoinoi.official@gmail.com">contact</a>
+      </nav>
+    </header>
+
+    <div class="rider-bar">
+      <div class="group">
+        <button type="button" data-lang="en">english</button>
+        <button type="button" data-lang="es">español</button>
+        <button type="button" data-lang="fr">français</button>
+      </div>
+      <div class="group">
+        <button type="button" class="print" onclick="window.print()">print</button>
+      </div>
+    </div>
+
+    <!-- ===================== ENGLISH ===================== -->
+
+    <main class="rider" lang="en" data-title="DVOINOI_Technical_Rider">
+      <h1>DVOINOI</h1>
+      <div class="doc-type">TECHNICAL RIDER</div>
+      <p class="subtitle">Live Electronic Music + Video Art &nbsp;|&nbsp; 2 Musicians + 1 Video Artist</p>
+
+      <h2>1. General information</h2>
+      <p>DVOINOI is a live electronic music act consisting of 2 musicians on stage and 1 video artist positioned at the FOH/sound technician booth. The set combines hardware-driven electronic music with real-time projected visuals.</p>
+      <table>
+        <thead><tr><th>Item</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Stage personnel</td><td>2 musicians</td></tr>
+          <tr><td>FOH / Booth personnel</td><td>1 video artist</td></tr>
+          <tr><td>Set duration</td><td>To be confirmed per event</td></tr>
+          <tr><td>Changeover time</td><td>30 min setup / 15 min breakdown</td></tr>
+        </tbody>
+      </table>
+
+      <h2>2. Sound - Front of house</h2>
+      <p>We bring our own mixer and handle all sub-mixing on stage. We provide a single stereo output to the house via XLR (L/R).</p>
+      <table>
+        <thead><tr><th>Item</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Output to FOH</td><td>1 x stereo pair - 2 x XLR male (balanced) from our mixer</td></tr>
+          <tr><td>Connection</td><td>2 x XLR female inputs needed at the stage box / DI</td></tr>
+          <tr><td>Signal level</td><td>Line level</td></tr>
+          <tr><td>DI boxes</td><td>Not required (balanced output from mixer)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>3. Monitoring</h2>
+      <p>Monitoring is essential for our performance. We need 2 stage monitors on stands (tripods), one per musician, at head height and pointed at us. Please no floor wedges: at that distance the stage sound mixes with the monitor and we can't hear ourselves properly.</p>
+      <table>
+        <thead><tr><th>Item</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Monitors</td><td>2 x monitors (12" minimum) on stands/tripods, each on its own mix if possible. No floor wedges</td></tr>
+          <tr><td>Placement</td><td>1 monitor close to each musician, at head height and pointed directly at them</td></tr>
+          <tr><td>Feed</td><td>Stereo mix from our mixer - we can provide a dedicated monitor send, or the FOH engineer can split from our main output</td></tr>
+          <tr><td>Volume</td><td>Must be loud enough to cut through stage volume - we rely heavily on monitors</td></tr>
+        </tbody>
+      </table>
+
+      <h2>4. Stage power requirements</h2>
+      <p>We run approximately 10 instruments and devices on stage. The exact gear lineup may vary between shows (MPC, Roland TR-8, Eurorack modular system, synthesizers, effects units, mixer, etc.).</p>
+      <table>
+        <thead><tr><th>Item</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Power outlets</td><td>Minimum 10 x grounded power outlets (Schuko / EU standard) within 2m of performance position</td></tr>
+          <tr><td>Power strips</td><td>We bring our own multi-plugs, but need at least 2 independent mains circuits to avoid ground loops</td></tr>
+          <tr><td>Clean power</td><td>Dedicated, clean circuit preferred, no shared lines with lighting dimmers or fridges</td></tr>
+          <tr><td>Table / surface</td><td>1 x sturdy table, minimum 200 cm x 80 cm, for instrument layout</td></tr>
+        </tbody>
+      </table>
+
+      <h2>5. Video / Visuals</h2>
+      <p>Our video artist performs live projected visuals. They need to be seated at or near the FOH / sound technician booth.</p>
+      <table>
+        <thead><tr><th>Item</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Projector</td><td>Minimum 10,000 lumens - suitable for a medium-sized venue (300–800 cap)</td></tr>
+          <tr><td>Projection surface</td><td>White screen or white wall behind the performers, minimum 3m x 2m</td></tr>
+          <tr><td>Cable run</td><td>HDMI cable must reach from the FOH booth to the projector. If distance exceeds 15m, use SDI or an active HDMI extender/fiber solution, Visual Artist needs HDMI end</td></tr>
+          <tr><td>VJ workspace</td><td>1 x table + chair at FOH booth with power (min. 2 outlets) for laptop and controller</td></tr>
+          <tr><td>Sight line</td><td>Video artist must have clear view of the projection screen from their position</td></tr>
+        </tbody>
+      </table>
+
+      <h2>6. Hospitality</h2>
+      <ul class="dots">
+        <li>6 x bottles of still water (room temperature, on stage and at FOH booth)</li>
+        <li>Access to venue minimum 90 minutes before doors for setup and soundcheck</li>
+        <li>Secure storage / lockable room for equipment before and after the show</li>
+        <li>1 x towel per performer</li>
+      </ul>
+
+      <h2>7. Venue checklist - Quick reference</h2>
+      <ul class="checks">
+        <li>2 x XLR female inputs at stage box for our stereo out</li>
+        <li>2 x monitors on stands/tripods (head height, one per musician)</li>
+        <li>10 x power outlets on stage (clean, grounded)</li>
+        <li>1 x sturdy table (200 x 80 cm minimum) on stage</li>
+        <li>1 x projector, 10,000 lumens minimum</li>
+        <li>1 x projection screen or white wall (3 x 2 m minimum)</li>
+        <li>HDMI/SDI cable run from FOH booth to projector</li>
+        <li>1 x table + chair + 2 power outlets at FOH booth for video artist</li>
+        <li>Water on stage and at FOH</li>
+        <li>90 min setup time before doors</li>
+      </ul>
+
+      <p class="note">Please contact us with any questions or if any requirements cannot be met - we are flexible and happy to find solutions. Thank you!</p>
+      <p class="contact">dvoinoi.official@gmail.com &nbsp;·&nbsp; <a href="https://dvoinoi.com">dvoinoi.com</a></p>
+    </main>
+
+    <!-- ===================== ESPAÑOL ===================== -->
+
+    <main class="rider" lang="es" data-title="DVOINOI_Rider_Tecnico" hidden>
+      <h1>DVOINOI</h1>
+      <div class="doc-type">RIDER TÉCNICO</div>
+      <p class="subtitle">Música electrónica en directo + videoarte &nbsp;|&nbsp; 2 músicos + 1 videoartista</p>
+
+      <h2>1. Información general</h2>
+      <p>DVOINOI es un proyecto de música electrónica en directo formado por 2 músicos en el escenario y 1 videoartista situado en la cabina de control de sonido (FOH). El directo combina música electrónica basada en hardware con visuales proyectados en tiempo real.</p>
+      <table>
+        <thead><tr><th>Concepto</th><th>Detalles</th></tr></thead>
+        <tbody>
+          <tr><td>Personal en escenario</td><td>2 músicos</td></tr>
+          <tr><td>Personal en FOH / cabina</td><td>1 videoartista</td></tr>
+          <tr><td>Duración del set</td><td>A confirmar según el evento</td></tr>
+          <tr><td>Tiempo de cambio</td><td>30 min de montaje / 15 min de desmontaje</td></tr>
+        </tbody>
+      </table>
+
+      <h2>2. Sonido – PA / FOH</h2>
+      <p>Traemos nuestra propia mesa de mezclas y hacemos toda la submezcla en el escenario. Entregamos una única salida estéreo a la PA por XLR (L/R).</p>
+      <table>
+        <thead><tr><th>Concepto</th><th>Detalles</th></tr></thead>
+        <tbody>
+          <tr><td>Salida a FOH</td><td>1 par estéreo: 2 XLR macho (balanceados) desde nuestra mesa</td></tr>
+          <tr><td>Conexión</td><td>Se necesitan 2 entradas XLR hembra en el stage box / DI</td></tr>
+          <tr><td>Nivel de señal</td><td>Nivel de línea</td></tr>
+          <tr><td>Cajas DI</td><td>No son necesarias (salida balanceada desde la mesa)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>3. Monitores</h2>
+      <p>Monitores son fundamentales para nuestro directo. Necesitamos 2 monitores de escenario sobre soporte (trípode), uno para cada músico, a la altura de la cabeza y orientados hacia nosotros. Por favor, no cuñas de suelo: a esa distancia el sonido del escenario se mezcla con el monitor y no nos oímos bien.</p>
+      <table>
+        <thead><tr><th>Concepto</th><th>Detalles</th></tr></thead>
+        <tbody>
+          <tr><td>Monitores</td><td>2 monitores (mínimo 12") sobre soporte/trípode, cada uno con su propia mezcla si es posible. No cuñas de suelo</td></tr>
+          <tr><td>Ubicación</td><td>1 monitor cerca de cada músico, a la altura de la cabeza y orientado directamente hacia él</td></tr>
+          <tr><td>Envío</td><td>Mezcla estéreo desde nuestra mesa: podemos dar un envío de monitores dedicado, o el técnico de FOH puede hacer un split de nuestra salida principal</td></tr>
+          <tr><td>Volumen</td><td>Debe tener volumen suficiente para imponerse al sonido del escenario: dependemos mucho de los monitores</td></tr>
+        </tbody>
+      </table>
+
+      <h2>4. Requisitos eléctricos en escenario</h2>
+      <p>Usamos unos 10 instrumentos y equipos en el escenario. El equipo exacto puede variar de un concierto a otro (MPC, Roland TR-8, sistema modular Eurorack, sintetizadores, efectos, mesa de mezclas, etc.).</p>
+      <table>
+        <thead><tr><th>Concepto</th><th>Detalles</th></tr></thead>
+        <tbody>
+          <tr><td>Tomas de corriente</td><td>Mínimo 10 tomas con toma de tierra (Schuko / estándar UE) a menos de 2 m de la posición de los músicos</td></tr>
+          <tr><td>Regletas</td><td>Traemos nuestras propias regletas, pero necesitamos al menos 2 circuitos eléctricos independientes para evitar bucles de masa</td></tr>
+          <tr><td>Corriente limpia</td><td>Preferiblemente un circuito dedicado y limpio, sin compartir línea con dimmers de iluminación ni neveras</td></tr>
+          <tr><td>Mesa / superficie</td><td>1 mesa robusta de mínimo 200 × 80 cm para colocar los instrumentos</td></tr>
+        </tbody>
+      </table>
+
+      <h2>5. Vídeo / Visuales</h2>
+      <p>Nuestro videoartista hace visuales proyectados en directo. Necesita estar sentado en la cabina de FOH / control de sonido o cerca de ella.</p>
+      <table>
+        <thead><tr><th>Concepto</th><th>Detalles</th></tr></thead>
+        <tbody>
+          <tr><td>Proyector</td><td>Mínimo 10.000 lúmenes, adecuado para una sala mediana (aforo de 300–800 personas)</td></tr>
+          <tr><td>Superficie de proyección</td><td>Pantalla blanca o pared blanca detrás de los músicos, mínimo 3 × 2 m</td></tr>
+          <tr><td>Tirada de cable</td><td>El cable HDMI debe llegar desde la cabina de FOH hasta el proyector. Si la distancia supera los 15 m, se debe usar SDI o un extensor HDMI activo / solución por fibra. En el extremo del videoartista la conexión debe ser HDMI</td></tr>
+          <tr><td>Puesto de VJ</td><td>1 mesa + silla en la cabina de FOH con corriente (mín. 2 tomas) para el portátil y el controlador</td></tr>
+          <tr><td>Visibilidad</td><td>El videoartista debe tener una visión clara de la pantalla de proyección desde su posición</td></tr>
+        </tbody>
+      </table>
+
+      <h2>6. Soundcheck</h2>
+      <ul class="dots">
+        <li>6 botellas de agua sin gas (a temperatura ambiente, en el escenario y en la cabina de FOH)</li>
+        <li>Acceso a la sala como mínimo 90 minutos antes de la apertura de puertas para montaje y prueba de sonido</li>
+        <li>Almacenaje seguro / sala con llave para el equipo antes y después del concierto</li>
+        <li>1 toalla por artista</li>
+      </ul>
+
+      <h2>7. Checklist para la sala – Resumen rápido</h2>
+      <ul class="checks">
+        <li>2 entradas XLR hembra en el stage box para nuestra salida estéreo</li>
+        <li>2 monitores sobre soporte/trípode (a la altura de la cabeza, uno por músico)</li>
+        <li>10 tomas de corriente en el escenario (limpias, con toma de tierra)</li>
+        <li>1 mesa robusta (mínimo 200 × 80 cm) en el escenario</li>
+        <li>1 proyector de mínimo 10.000 lúmenes</li>
+        <li>1 pantalla de proyección o pared blanca (mínimo 3 × 2 m)</li>
+        <li>Tirada de cable HDMI/SDI desde la cabina de FOH hasta el proyector</li>
+        <li>1 mesa + silla + 2 tomas de corriente en la cabina de FOH para el videoartista</li>
+        <li>Agua en el escenario y en FOH</li>
+        <li>90 min de montaje antes de la apertura de puertas</li>
+      </ul>
+
+      <p class="note">No dudéis en contactarnos si tenéis cualquier pregunta o si no es posible cumplir algún requisito: somos flexibles y estaremos encantados de buscar soluciones. ¡Gracias!</p>
+      <p class="contact">dvoinoi.official@gmail.com &nbsp;·&nbsp; <a href="https://dvoinoi.com">dvoinoi.com</a></p>
+    </main>
+
+    <!-- ===================== FRANÇAIS ===================== -->
+
+    <main class="rider" lang="fr" data-title="DVOINOI_Fiche_Technique" hidden>
+      <h1>DVOINOI</h1>
+      <div class="doc-type">FICHE TECHNIQUE</div>
+      <p class="subtitle">Musique électronique live + art vidéo &nbsp;|&nbsp; 2 musiciens + 1 artiste vidéo</p>
+
+      <h2>1. Informations générales</h2>
+      <p>DVOINOI est un projet de musique électronique live composé de 2 musiciens sur scène et d'1 artiste vidéo placé à la régie façade (FOH). Le live associe musique électronique jouée sur machines et visuels projetés en temps réel.</p>
+      <table>
+        <thead><tr><th>Élément</th><th>Détails</th></tr></thead>
+        <tbody>
+          <tr><td>Personnel sur scène</td><td>2 musiciens</td></tr>
+          <tr><td>Personnel en régie (FOH)</td><td>1 artiste vidéo</td></tr>
+          <tr><td>Durée du set</td><td>À confirmer selon l'événement</td></tr>
+          <tr><td>Changement de plateau</td><td>30 min d'installation / 15 min de démontage</td></tr>
+        </tbody>
+      </table>
+
+      <h2>2. Son – Façade (FOH)</h2>
+      <p>Nous venons avec notre propre console et faisons tout le sous-mixage sur scène. Nous fournissons une seule sortie stéréo vers la façade en XLR (G/D).</p>
+      <table>
+        <thead><tr><th>Élément</th><th>Détails</th></tr></thead>
+        <tbody>
+          <tr><td>Sortie vers la façade</td><td>1 paire stéréo – 2 XLR mâles (symétriques) depuis notre console</td></tr>
+          <tr><td>Connexion</td><td>2 entrées XLR femelles nécessaires au stage box / DI</td></tr>
+          <tr><td>Niveau du signal</td><td>Niveau ligne</td></tr>
+          <tr><td>Boîtiers DI</td><td>Pas nécessaires (sortie symétrique depuis la console)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>3. Retours</h2>
+      <p>Les retours sont essentiels pour notre live. Nous avons besoin de 2 retours de scène sur pied, un par musicien, à hauteur de tête et dirigés vers nous. Pas de wedges au sol, s'il vous plaît&nbsp;: à cette distance, le son de la scène se mélange avec le retour et nous ne nous entendons pas bien.</p>
+      <table>
+        <thead><tr><th>Élément</th><th>Détails</th></tr></thead>
+        <tbody>
+          <tr><td>Retours</td><td>2 retours (12" minimum) sur pied, chacun avec son propre mix si possible. Pas de wedges au sol</td></tr>
+          <tr><td>Placement</td><td>1 retour près de chaque musicien, à hauteur de tête et dirigé directement vers lui</td></tr>
+          <tr><td>Envoi</td><td>Mix stéréo depuis notre console – nous pouvons fournir un envoi retours dédié, ou l'ingé son façade peut faire un split de notre sortie principale</td></tr>
+          <tr><td>Volume</td><td>Doit être assez fort pour passer au-dessus du son de la scène – nous dépendons beaucoup des retours</td></tr>
+        </tbody>
+      </table>
+
+      <h2>4. Alimentation électrique sur scène</h2>
+      <p>Nous utilisons environ 10 instruments et appareils sur scène. Le matériel exact peut changer d'un concert à l'autre (MPC, Roland TR-8, système modulaire Eurorack, synthétiseurs, effets, console, etc.).</p>
+      <table>
+        <thead><tr><th>Élément</th><th>Détails</th></tr></thead>
+        <tbody>
+          <tr><td>Prises électriques</td><td>Minimum 10 prises avec terre (Schuko / norme UE) à moins de 2 m de la position des musiciens</td></tr>
+          <tr><td>Multiprises</td><td>Nous apportons nos propres multiprises, mais il nous faut au moins 2 circuits électriques indépendants pour éviter les boucles de masse</td></tr>
+          <tr><td>Courant propre</td><td>Circuit dédié et propre de préférence, sans partage de ligne avec les gradateurs d'éclairage ou les frigos</td></tr>
+          <tr><td>Table / surface</td><td>1 table solide, minimum 200 × 80 cm, pour installer les instruments</td></tr>
+        </tbody>
+      </table>
+
+      <h2>5. Vidéo / Visuels</h2>
+      <p>Notre artiste vidéo joue des visuels projetés en live. Son poste doit se trouver à la régie façade (FOH) ou à côté.</p>
+      <table>
+        <thead><tr><th>Élément</th><th>Détails</th></tr></thead>
+        <tbody>
+          <tr><td>Vidéoprojecteur</td><td>Minimum 10&nbsp;000 lumens – adapté à une salle de taille moyenne (jauge de 300–800 personnes)</td></tr>
+          <tr><td>Surface de projection</td><td>Écran blanc ou mur blanc derrière les musiciens, minimum 3 × 2 m</td></tr>
+          <tr><td>Liaison câble</td><td>Le câble HDMI doit aller de la régie façade jusqu'au vidéoprojecteur. Au-delà de 15 m, utiliser du SDI ou un extendeur HDMI actif / une solution fibre. Côté artiste vidéo, la connexion doit être en HDMI</td></tr>
+          <tr><td>Poste VJ</td><td>1 table + chaise à la régie façade avec courant (min. 2 prises) pour l'ordinateur portable et le contrôleur</td></tr>
+          <tr><td>Visibilité</td><td>L'artiste vidéo doit avoir une vue dégagée sur l'écran de projection depuis sa place</td></tr>
+        </tbody>
+      </table>
+
+      <h2>6. Accueil</h2>
+      <ul class="dots">
+        <li>6 bouteilles d'eau plate (à température ambiante, sur scène et à la régie façade)</li>
+        <li>Accès à la salle au minimum 90 minutes avant l'ouverture des portes pour l'installation et la balance</li>
+        <li>Stockage sécurisé / local fermant à clé pour le matériel avant et après le concert</li>
+        <li>1 serviette par artiste</li>
+      </ul>
+
+      <h2>7. Check-list pour la salle – Résumé</h2>
+      <ul class="checks">
+        <li>2 entrées XLR femelles au stage box pour notre sortie stéréo</li>
+        <li>2 retours sur pied (à hauteur de tête, un par musicien)</li>
+        <li>10 prises électriques sur scène (courant propre, avec terre)</li>
+        <li>1 table solide (minimum 200 × 80 cm) sur scène</li>
+        <li>1 vidéoprojecteur de 10&nbsp;000 lumens minimum</li>
+        <li>1 écran de projection ou mur blanc (minimum 3 × 2 m)</li>
+        <li>Liaison câble HDMI/SDI de la régie façade jusqu'au vidéoprojecteur</li>
+        <li>1 table + chaise + 2 prises électriques à la régie façade pour l'artiste vidéo</li>
+        <li>Eau sur scène et à la régie façade</li>
+        <li>90 min d'installation avant l'ouverture des portes</li>
+      </ul>
+
+      <p class="note">N'hésitez pas à nous contacter pour toute question ou si certaines demandes ne peuvent pas être satisfaites&nbsp;: nous sommes flexibles et heureux de trouver des solutions. Merci&nbsp;!</p>
+      <p class="contact">dvoinoi.official@gmail.com &nbsp;·&nbsp; <a href="https://dvoinoi.com">dvoinoi.com</a></p>
+    </main>
+
+  </div>
+
+<script>
+// language: #en / #es / #fr in the url wins, then browser language, then english
+const riders  = document.querySelectorAll('.rider');
+const buttons = document.querySelectorAll('[data-lang]');
+const langs   = [...riders].map(r => r.lang);
+
+function setLang(lang) {
+  riders.forEach(r => {
+    const on = r.lang === lang;
+    r.hidden = !on;
+    if (on) document.title = r.dataset.title;  // default file name when saving as pdf
+  });
+  buttons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  document.documentElement.lang = lang;
+  history.replaceState(null, '', '#' + lang);
+}
+
+buttons.forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+const hash    = location.hash.slice(1);
+const browser = (navigator.language || '').slice(0, 2);
+setLang(langs.includes(hash) ? hash : langs.includes(browser) ? browser : 'en');
+</script>
+
+</body>
+</html>
