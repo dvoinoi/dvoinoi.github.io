@@ -330,7 +330,7 @@ input[type=range] { accent-color: var(--accent); }
 <tr><td><code>tracks</code></td><td>array of tracks (below)</td></tr>
 <tr><td><code>returns</code></td><td>send / return tracks (up to 8): <code>{id, name, vol, pan, fx:[...]}</code>, ids are single letters <code>A</code>…<code>H</code>. Every track has a send for each (<code>sends: {"C": 0.4}</code>). Default: A = reverb, B = delay.</td></tr>
 <tr><td><code>master</code></td><td><code>{vol, fx:[...]}</code>. Default chain: gentle comp + limiter.</td></tr>
-<tr><td><code>scenes</code></td><td>the arrangement (below). With no scenes, every track loops its first pattern.</td></tr>
+<tr><td><code>scenes</code></td><td>the arrangement (below). With no scenes, every track loops its <code>loop</code> pattern (its first pattern with something in it, unless set).</td></tr>
 <tr><td><code>progression</code></td><td>the song's chord progression, which tracks can follow (below): <code>"ii7 V7 Imaj7:2"</code> or <code>{prog, len (beats per chord, default 4), restart: "song"}</code>, or a library name such as <code>"Axis (I–V–vi–IV)"</code></td></tr>
 <tr><td><code>patches</code></td><td>the song's sub-patch library (below): <code>{"name": {label, desc, nodes, wires, controls}}</code></td></tr>
 <tr><td><code>theme</code></td><td>the song's own look, shown when the user picks "Use each song's own look" (the interface is dark by default): <code>{preset: dark|light|graphite|midnight|neon|paper|console, accent, bg, panel, panel2, line, text, dim, ink (hex colours), radius (px), font (any Google Fonts family), css (extra CSS, no url/@import)}</code></td></tr>
@@ -350,6 +350,7 @@ input[type=range] { accent-color: var(--accent); }
 <tr><td><code>inst</code></td><td>the sound: a patch of modules, <code>{nodes:{name:{type, ...params}}, wires:[...]}</code>. Each voice runs its own copy. Must contain an <code>out</code> module.</td></tr>
 <tr><td><code>fx</code></td><td>insert effects, in order: <code>[{type, on, label, ...params}]</code>. <code>type:"graph"</code> takes <code>nodes</code>/<code>wires</code> like inst, using <code>in</code> → … → <code>out</code>.</td></tr>
 <tr><td><code>patterns</code></td><td>array, referred to as A, B, C… (below)</td></tr>
+<tr><td><code>loop</code></td><td>the pattern this track plays when the song has no <code>scenes</code>: <code>"B"</code> or 1. Left out, it is the first pattern with something in it (so an empty A is skipped). With scenes, each scene's <code>play</code> decides instead.</td></tr>
 <tr><td><code>macros</code></td><td>quick-control knobs at the top of the track: <code>[{label, path}]</code>, path relative to the track, e.g. <code>"inst/filt/cut"</code>, <code>"fx/0/mix"</code>, <code>"send/B"</code></td></tr>
 <tr><td><code>out</code></td><td>where the track's sound goes instead of the master: the id of a <b>bus track</b>, or an output of a multichannel sound card: <code>"hw:3"</code> = outputs 3/4, <code>"hw:5m"</code> = output 5 alone. Returns can use <code>out</code> with a hardware output, and the master with a pair (default <code>"hw:1"</code>). Outputs the listener's card does not have play on 1/2, so a song always sounds complete.</td></tr>
 <tr><td><code>kind: "bus"</code></td><td><b>Bus track</b>: no instrument and no patterns. Tracks whose <code>out</code> is its id pass their whole signal through it (unlike a send), then through its <code>fx</code>, fader, pan, <code>sends</code> and its own <code>out</code>. Buses can feed buses (no loops). Lanes, locks and scenes reach its effects as <code>busId/fx/0/cut</code>. Soloing a track keeps its buses audible; soloing a bus keeps its inputs. Example: <code>{"name": "Drums", "kind": "bus", "fx": [{"type": "comp"}]}</code> with <code>"out": "drums"</code> on the kick and hats.</td></tr>
@@ -2076,6 +2077,8 @@ function RigEngine() {
     if (m) { const ch = clamp(+m[1] | 0, 1, m[2] ? 32 : 31); return 'hw:' + ch + m[2]; }
     return String(v);
   }
+  // does a pattern play anything at all? (notes, or a generator / machine)
+  function patHasContent(p) { return !!(p && ((p.notes && p.notes.length) || p.gen || algoOf(p))); }
   function normTrack(t, i, used, warn) {
     const o = {};
     o.name = String(t.name || t.id || 'Track ' + (i + 1));
@@ -2118,6 +2121,11 @@ function RigEngine() {
     o.inst = normGraph(t.inst, 'voice', (m) => warn(o.name + ': ' + m));
     o.fx = (t.fx || []).map((f) => normFx(f, (m) => warn(o.name + ': ' + m))).filter(Boolean);
     o.patterns = (t.patterns || []).map((p) => normPattern(p, Object.assign({}, t, { kind: o.kind }), warn));
+    // loop: the pattern this track plays when the song has no scenes ("B" or 1). Not given: the first pattern with something in it
+    { const L = o.patterns.length; let lp = t.loop;
+      if (typeof lp === 'string' && /^[A-Za-z]$/.test(lp)) lp = lp.toUpperCase().charCodeAt(0) - 65;
+      lp = lp == null || !isFinite(+lp) ? o.patterns.findIndex(patHasContent) : Math.round(+lp);
+      if (lp > 0 && lp < L) o.loop = lp; }
     if (!o.patterns.length) o.patterns.push({ len: 16, div: 4, notes: [] });
     o.macros = (t.macros || []).filter((m) => m && m.path).map((m) => ({ label: String(m.label || m.path.split('/').pop()), path: String(m.path) }));
     return o;
@@ -2245,7 +2253,7 @@ function RigEngine() {
       else if (!isBus) { this.setInst(def); this.setPatterns(def.patterns); }
       this.setFx(def.fx);
     }
-    setDef(def) { const n = noteNum(def.note !== undefined ? def.note : def.kind === 'drum' ? 36 : 60); this.defNote = n === null ? 60 : clamp(n, 0, 127); }
+    setDef(def) { const n = noteNum(def.note !== undefined ? def.note : def.kind === 'drum' ? 36 : 60); this.defNote = n === null ? 60 : clamp(n, 0, 127); this.loop = def.loop | 0; }
     setMix(def) {
       this.mix = { vol: def.vol, pan: def.pan, mute: !!def.mute, solo: !!def.solo };
       this.out = def.out || (def.id === 'master' ? 'hw:1' : 'master');
@@ -3334,7 +3342,7 @@ function RigEngine() {
           t.force = m.pat >= 0 ? m.pat : -1;
           if (!this.playing) break;
           const sc = this.scenes[this.scene];
-          const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : 0;
+          const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loop;
           t.releaseLocks(); t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0;
           t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null; t.patIndex = t.pat ? pi : -1;
           if (!t.pat) { for (const v of t.voices) v.gate = 0; break; }
@@ -3412,7 +3420,7 @@ function RigEngine() {
       this.sceneLen = sc ? sc.bars * 4 : Infinity;
       if (hard) { this.arps = []; for (const t of this.tracks) { t.arpRun = null; t.arpI = 0; } }
       for (const t of this.tracks) {
-        const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : 0, prev = t.pat;
+        const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loop, prev = t.pat;
         t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null;
         t.patIndex = t.pat ? pi : -1;
         t.releaseLocks();
@@ -3570,7 +3578,7 @@ function RigEngine() {
   }
 
   // internals exposed for the test suite
-  const _ = { velGain, euclidRow, miniValueAt, miniVel, euclidBits, normCond, parseRule, queryMini, degreeNote, miniNote, compileAlgo, algoInit, algoStep, algoView, keepAlgoState, arpSeq, ARP_RATES, ARP_ORDERS, ALGO_KNOBS, CA_RULES, MINI_DRUMS, normEuclid, normTuring, normCart, normCells, normMini, mix32, parseScala, normTuning, tuningTable, normScale, fsin, P, O, SYNCB, blep, inp, envTick, svf, lfoWave, rnd, xf, readI, biq, bqRun, optName, takeParams, parseWire, normSet, weighted, parseSig, parseDiv, GEN_KEYS, normMatrix, slug, normBus, compileGraph, sharedParams, instGraph, makeVoice, Track, mapVal, mkRng, pickW, genStep, genBar, compileFor, normControls, nodeParam, SUB_DEPTH, whiteIdx, progIndex };
+  const _ = { patHasContent, velGain, euclidRow, miniValueAt, miniVel, euclidBits, normCond, parseRule, queryMini, degreeNote, miniNote, compileAlgo, algoInit, algoStep, algoView, keepAlgoState, arpSeq, ARP_RATES, ARP_ORDERS, ALGO_KNOBS, CA_RULES, MINI_DRUMS, normEuclid, normTuring, normCart, normCells, normMini, mix32, parseScala, normTuning, tuningTable, normScale, fsin, P, O, SYNCB, blep, inp, envTick, svf, lfoWave, rnd, xf, readI, biq, bqRun, optName, takeParams, parseWire, normSet, weighted, parseSig, parseDiv, GEN_KEYS, normMatrix, slug, normBus, compileGraph, sharedParams, instGraph, makeVoice, Track, mapVal, mkRng, pickW, genStep, genBar, compileFor, normControls, nodeParam, SUB_DEPTH, whiteIdx, progIndex };
   return { Engine, MODS, FX, SYNC, DIVS, normGen, genToJSON, normSong, noteNum, noteName, parseSteps, convParam, PALETTE, defaults, normGraph, normFx, normPattern, normTrack, normPatches, nodeInfo, flatGraph, pname, parseChord, parseProg, voiceChord, CHORD_Q, normChords, normProgression, parseMini, algoOf, ALGOS, _ };
 }
 
@@ -4388,7 +4396,7 @@ const RigLib = (() => {
 })();
 
 </script>
-<script>const RIG_VERSION = '2026-11-22 10:05';</script>
+<script>const RIG_VERSION = '2026-11-22 10:54';</script>
 <script>/* ============================================================================================
  * RIG: GUIDE FOR AI AGENTS (how to hand a user a link that opens your composition)
  * ============================================================================================
@@ -4954,9 +4962,11 @@ function pushSong() { send({ t: 'song', song: clone(S.song) }); sendForces(); pu
 S.forced = {};
 function sendForces() { for (const id in S.forced) send({ t: 'force', id, pat: S.forced[id] }); }
 async function playPattern(t, pi) {
-  S.forced[t.id] = pi;
   await ensureAudio();
-  send({ t: 'force', id: t.id, pat: pi });
+  if (!S.song.scenes.length) { // no scenes: the song itself remembers which pattern each track loops (saved, and in share links)
+    snap(); if (pi) t.loop = pi; else delete t.loop; delete S.forced[t.id];
+    pushTrack(t, 'mix'); send({ t: 'force', id: t.id, pat: -1 });
+  } else { S.forced[t.id] = pi; send({ t: 'force', id: t.id, pat: pi }); } // with scenes: a live override on top of the arrangement
   if (!S.playing) await play();
   render();
 }
@@ -5717,7 +5727,7 @@ function arrangement() {
   const s = S.song;
   const wrap = h('section');
   const head = h('div', { class: 'sec-h' }, h('h2', null, 'Arrangement'),
-    h('button', { class: 'small', onclick: () => { snap(); s.scenes.push({ name: 'Scene ' + (s.scenes.length + 1), bars: 4, play: s.scenes.length ? clone(s.scenes[s.scenes.length - 1].play) : Object.fromEntries(s.tracks.filter((t) => t.kind !== 'bus').map((t) => [t.id, 0])) }); pushScenes(); render(); } }, '+ Scene'));
+    h('button', { class: 'small', onclick: () => { snap(); s.scenes.push({ name: 'Scene ' + (s.scenes.length + 1), bars: 4, play: s.scenes.length ? clone(s.scenes[s.scenes.length - 1].play) : Object.fromEntries(s.tracks.filter((t) => t.kind !== 'bus').map((t) => [t.id, t.loop | 0])) }); pushScenes(); render(); } }, '+ Scene')); // the first scene starts from what each track loops now
   const arrTracks = s.tracks.filter((t) => t.kind !== 'bus'); // bus tracks have no patterns
   wrap.append(head);
   if (!s.scenes.length) {
@@ -6209,18 +6219,22 @@ function renderSeq(m, t) {
     const k = newSel.value; if (!k) return; snap();
     t.patterns.push(k === 'steps' ? { len: p.len, div: p.div, notes: [] } : makePattern(t, k, p)); S.selPat[t.id] = t.patterns.length - 1; pushTrack(t, 'pats'); render();
   } }, h('option', { value: '' }, '+ New…'), PAT_KINDS.map(([k, l]) => h('option', { value: k }, l)));
-  const chips = h('div', { class: 'chips' }, t.patterns.map((pp, i) => { const kd = patKind(pp); return h('button', { class: i === pi ? 'on' : '', title: (PAT_KINDS.find((x) => x[0] === kd) || [0, 'Steps'])[1] + ' pattern', onclick: () => { S.selPat[t.id] = i; render(); } }, (S.forced[t.id] === i ? '▶' : '') + String.fromCharCode(65 + i) + (PAT_MARK[kd] || '')); }),
+  const chips = h('div', { class: 'chips' }, t.patterns.map((pp, i) => { const kd = patKind(pp); return h('button', { class: i === pi ? 'on' : '', title: (PAT_KINDS.find((x) => x[0] === kd) || [0, 'Steps'])[1] + ' pattern' + (!S.song.scenes.length && (t.loop | 0) === i ? ' (the one this track loops)' : ''), onclick: () => { S.selPat[t.id] = i; render(); } }, (S.forced[t.id] === i || (!S.song.scenes.length && S.forced[t.id] === undefined && (t.loop | 0) === i && t.patterns.length > 1) ? '▶' : '') + String.fromCharCode(65 + i) + (PAT_MARK[kd] || '')); }),
     h('button', { title: 'New empty pattern', 'aria-label': 'New empty pattern', onclick: () => { snap(); t.patterns.push({ len: p.len, div: p.div, notes: [] }); S.selPat[t.id] = t.patterns.length - 1; pushTrack(t, 'pats'); render(); } }, '+'),
     newSel,
     h('button', { title: 'Duplicate this pattern', onclick: () => { snap(); t.patterns.push(clone(p)); S.selPat[t.id] = t.patterns.length - 1; pushTrack(t, 'pats'); render(); } }, '⧉'),
-    t.patterns.length > 1 ? h('button', { title: 'Delete this pattern', onclick: () => { snap(); t.patterns.splice(pi, 1); S.song.scenes.forEach((sc) => { const v = sc.play[t.id]; if (v === pi) delete sc.play[t.id]; else if (v > pi) sc.play[t.id] = v - 1; }); S.selPat[t.id] = 0; pushTrack(t, 'pats'); pushScenes(); render(); toast('Pattern deleted', { label: 'Undo', fn: undo }); } }, '✕') : null);
+    t.patterns.length > 1 ? h('button', { title: 'Delete this pattern', onclick: () => { snap(); t.patterns.splice(pi, 1); S.song.scenes.forEach((sc) => { const v = sc.play[t.id]; if (v === pi) delete sc.play[t.id]; else if (v > pi) sc.play[t.id] = v - 1; }); if ((t.loop | 0) === pi) delete t.loop; else if (t.loop > pi) t.loop--; if (!t.loop) delete t.loop; S.selPat[t.id] = 0; pushTrack(t, 'pats'); pushScenes(); render(); toast('Pattern deleted', { label: 'Undo', fn: undo }); } }, '✕') : null);
   const changed = () => { pushTrack(t, 'pats'); };
-  const forced = S.forced[t.id] === pi;
+  const forced = S.forced[t.id] === pi, noScenes = !S.song.scenes.length, looping = noScenes && (t.loop | 0) === pi;
   const inScenes = S.song.scenes.filter((sc) => sc.play[t.id] === pi).map((sc) => sc.name);
   const playBtn = forced
     ? h('button', { class: 'small on', onclick: () => backToArrangement(t) }, '■ Back to the arrangement')
+    : looping ? h('button', { class: 'small on', onclick: () => playPattern(t, pi) }, S.playing ? '▶ Playing' : '▶ Play')
     : h('button', { class: 'small primary', onclick: () => playPattern(t, pi) }, '▶ Play this pattern');
-  const where = h('span', { class: 'hint' }, forced ? 'Pattern ' + String.fromCharCode(65 + pi) + ' is playing on this track whatever the scene.' : S.song.scenes.length ? (inScenes.length ? 'Used in: ' + inScenes.join(', ') : 'Not used in any scene yet (add it in Song › Arrangement).') : '');
+  const L0 = String.fromCharCode(65 + pi);
+  const where = h('span', { class: 'hint' }, forced ? 'Pattern ' + L0 + ' is playing on this track whatever the scene (a live override: the song and its share link follow the scenes).'
+    : noScenes ? (looping ? 'This track loops pattern ' + L0 + '. The song has no scenes, so this is saved with it and in share links.' : 'This track loops pattern ' + String.fromCharCode(65 + (t.loop | 0)) + '. ▶ makes it loop ' + L0 + ' instead (saved with the song).')
+    : inScenes.length ? 'Used in: ' + inScenes.join(', ') : 'Not used in any scene yet (add it in Song › Arrangement).');
   const playRow = h('div', { class: 'row', style: { margin: '8px 0' } }, playBtn, where);
   const typeSel = h('select', { 'aria-label': 'Pattern type', onchange: (e) => {
     snap(); const v = e.target.value, was = patKind(p);
@@ -7832,7 +7846,11 @@ function openMenu() {
       item('Scale & tuning (microtuning)…', tuningDialog),
       item('Sub-patch library…', patchLibDialog),
       item('Copy song JSON', () => copy(JSON.stringify(S.song, null, 1), 'Song JSON')),
-      item('Copy share link', async () => { const hsh = await encodeHash(shareText()); copy(pageBase() + '#' + hsh, 'Link'); }),
+      item('Copy share link', async () => {
+        const hsh = await encodeHash(shareText()); copy(pageBase() + '#' + hsh, 'Link');
+        const live = Object.keys(S.forced).filter((id) => findT(id)).map((id) => findT(id).name);
+        if (live.length && S.song.scenes.length) setTimeout(() => toast('Note: ' + live.join(', ') + (live.length > 1 ? ' are' : ' is') + ' playing a pattern with ▶, a live override. The link plays the song’s scenes.'), 1600);
+      }),
       item('Undo', undo),
       item('New blank song', () => { stop(); loadSong(blankSong()); }),
       item('When Rig opens… (blank, last session or your song)', startDialog),
