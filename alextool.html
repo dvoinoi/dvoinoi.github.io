@@ -3727,7 +3727,8 @@ function RigEngine() {
       for (const path in tab) {
         if (this.touch[path]) continue;
         const r = this.autoRef(path); if (!r) continue;
-        const sp = r.spec || {}, v = autoAt(tab[path], pos, L, sp.hold || sp.bool || !!sp.options); if (v === undefined) continue;
+        const sp = r.spec || {}; if (sp.type === 'track' || sp.type === 'sample') continue; // (an older take of a track choice: ignored)
+        const v = autoAt(tab[path], pos, L, sp.hold || sp.bool || !!sp.options); if (v === undefined) continue;
         if (r._av !== v) { r._av = v; r.set(v); this.autoVals[path] = v; }
       }
     }
@@ -3870,7 +3871,8 @@ function RigEngine() {
           const r = this.resolve(m.path); if (!r) break;
           const before = m.rec && r.get ? r.get() : undefined;
           r.set(m.v);
-          if (m.rec && this.playing) this.autoRec(m.path, m.v, before, m.at);
+          const choice = r.spec && (r.spec.type === 'track' || r.spec.type === 'sample'); // which track or sample: a setting, never recorded
+          if (m.rec && this.playing && !choice) this.autoRec(m.path, m.v, before, m.at);
           else if (!m.norec && this.song && this.song.autoBase && m.path in this.song.autoBase && autoVal(m.v) !== null) { // moved by hand without Rec: the value it keeps outside its automation; the automation itself plays on
             this.song.autoBase[m.path] = autoVal(m.v); this.autoMeta = true;
             const ar = this.autoRefs[m.path]; if (ar) ar._av = undefined;
@@ -4560,21 +4562,28 @@ const RigLib = (() => {
   // open the same bands of this track's sound (the carrier, plus a little noise for consonants)
   function vocoderPatch(src) {
     const n = 12, nodes = { in: { type: 'in' }, voice: { type: 'trackin', src: src || '', gain: 1 }, pre: { type: 'onepole', mode: 'hp', cut: 90 },
-      hiss: { type: 'noise', color: 'white', level: 1 }, car: { type: 'mix', a: 1, b: 0.12 }, dry: { type: 'scale', gain: 0 }, out: { type: 'out', level: 3 } };
+      hiss: { type: 'noise', color: 'white', level: 1 }, car: { type: 'mix', a: 1, b: 0.12 }, dry: { type: 'scale', gain: 0 }, out: { type: 'out', level: 0.35 } };
     const wires = ['voice -> pre', 'in -> car.a', 'hiss -> car.b', 'pre -> dry', 'dry -> out'];
     const sh = [], q = [], at = [], rl = [];
     for (let k = 0; k < n; k++) {
       const f = Math.round(120 * Math.pow(8000 / 120, k / (n - 1)));
-      nodes['m' + k] = { type: 'filter', mode: 'bp', cut: f, res: 0.85 }; nodes['e' + k] = { type: 'follow', att: 0.004, rel: 0.06, gain: 4 };
-      nodes['c' + k] = { type: 'filter', mode: 'bp', cut: f, res: 0.85 }; nodes['v' + k] = { type: 'vca' };
-      wires.push(`pre -> m${k}`, `m${k} -> e${k}`, `car -> c${k}`, `c${k} -> v${k}`, `e${k} -> v${k}.cv`, `v${k} -> out`);
-      sh.push(['c' + k, 'cut', Math.max(20, f / 2), Math.min(20000, f * 2)]); q.push(['m' + k, 'res', 0.5, 0.97], ['c' + k, 'res', 0.5, 0.97]);
+      // each band: two band-passes in a row (steep, so bands stay apart) on the voice and on the carrier; the voice band's level
+      // (follower) opens the carrier band, which is lifted towards the top so a dark carrier still says its consonants
+      nodes['m' + k] = { type: 'filter', mode: 'bp', cut: f, res: 0.8 }; nodes['mm' + k] = { type: 'filter', mode: 'bp', cut: f, res: 0.8 };
+      nodes['e' + k] = { type: 'follow', att: 0.004, rel: 0.06, gain: 6 };
+      nodes['c' + k] = { type: 'filter', mode: 'bp', cut: f, res: 0.8 }; nodes['cc' + k] = { type: 'filter', mode: 'bp', cut: f, res: 0.8 };
+      nodes['v' + k] = { type: 'vca', gain: Math.round(400 * Math.sqrt(f / 8000)) / 100 };
+      nodes['x' + k] = { type: 'fn', op: 'square' }; // the band's level squared: quiet bands close, loud ones open (expansion)
+      wires.push(`pre -> m${k}`, `m${k} -> mm${k}`, `mm${k} -> e${k}`, `e${k} -> x${k}`, `car -> c${k}`, `c${k} -> cc${k}`, `cc${k} -> v${k}`, `x${k} -> v${k}.cv`, `v${k} -> out`);
+      sh.push(['c' + k, 'cut', Math.max(20, f / 2), Math.min(20000, f * 2)], ['cc' + k, 'cut', Math.max(20, f / 2), Math.min(20000, f * 2)]);
+      q.push(['m' + k, 'res', 0.5, 0.95], ['mm' + k, 'res', 0.5, 0.95], ['c' + k, 'res', 0.5, 0.95], ['cc' + k, 'res', 0.5, 0.95]);
       at.push(['e' + k, 'att', 0.001, 0.05]); rl.push(['e' + k, 'rel', 0.01, 0.5]);
     }
     return { type: 'graph', label: 'Vocoder (patch, 12 bands)', mix: 1, nodes, wires, macros: [
-      mac('Shift', 0.5, ...sh), mac('Q', 0.75, ...q), mac('Attack', 0.3, ...at), mac('Release', 0.45, ...rl),
+      mac('Shift', 0.5, ...sh), mac('Q', 0.67, ...q), mac('Attack', 0.3, ...at), mac('Release', 0.45, ...rl),
       mac('Hiss', 0.2, ['car', 'b', 0, 0.6]), mac('Voice level', 0.25, ['voice', 'gain', 0, 4]), mac('Dry voice', 0, ['dry', 'gain', 0, 1])] };
   }
+
   // the built-in effects as patches: nx(key) = where the effect's knob sits (0…1 along its curve), p = its values
   const FXPATCH = {
     filter: (p, nx) => ({ type: 'graph', label: 'Filter (patch)', mix: p.mix,
@@ -5201,7 +5210,7 @@ const RigLib = (() => {
 })();
 
 </script>
-<script>const RIG_VERSION = '2026-11-23 18:05';</script>
+<script>const RIG_VERSION = '2026-11-23 18:28';</script>
 <script>/* ============================================================================================
  * RIG: GUIDE FOR AI AGENTS (how to hand a user a link that opens your composition)
  * ============================================================================================
@@ -6061,6 +6070,11 @@ function recClock() { const c = S.ctx; if (!c) return undefined; return c.curren
 document.addEventListener('pointerdown', (e) => recPtrs.add(e.pointerId), true);
 for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, (e) => { recPtrs.delete(e.pointerId); if (!recPtrs.size) recRelease(); }, true);
 window.addEventListener('blur', () => { recPtrs.clear(); recRelease(); });
+function dropChoiceAuto() {
+  const s = S.song, bad = (p) => { const r = refAbs(p); return !!(r && r.sp && (r.sp.type === 'track' || r.sp.type === 'sample')); };
+  for (const own of [s].concat(s.scenes)) if (own.auto) { for (const p in own.auto) if (bad(p)) delete own.auto[p]; if (!Object.keys(own.auto).length) delete own.auto; }
+  if (s.autoBase) { for (const p in s.autoBase) if (bad(p)) delete s.autoBase[p]; if (!Object.keys(s.autoBase).length) delete s.autoBase; }
+}
 function autoTables(s = S.song) { return s.scenes.length ? s.scenes.map((sc, i) => [i, sc]) : [[-1, s]]; }
 function autoPaths(s = S.song) { const o = new Set(); for (const [, x] of autoTables(s)) for (const p in x.auto || {}) o.add(p); return o; }
 function mergeAuto(m) {
@@ -6199,6 +6213,7 @@ function loadSong(raw, o = {}) {
   if (S.song && !o.noSnap) snap();
   if (!o.noSnap && !o.keepView) S.lastOffer = null; // another song was opened: no more offer to carry on
   S.song = res.song; S.selPat = {}; S.forced = {};
+  dropChoiceAuto(); // automation recorded on a track or sample choice (older versions recorded it) only fought the menu
   // scale names are matched without caring about case or extra spaces ("Dorian" = "dorian")
   if (S.song.scale && !L.SCALES[S.song.scale.name]) { const k = Object.keys(L.SCALES).find((x) => x.toLowerCase() === S.song.scale.name.toLowerCase().trim().replace(/\s+/g, ' ')); if (k) S.song.scale.name = k; }
   if (!o.keepView || !viewValid()) S.view = { v: 'song' };
