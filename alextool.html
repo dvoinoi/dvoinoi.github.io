@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
 <style>:root {
-  --bg: #1f1f1f; --panel: #2b2b2b; --panel2: #363636; --line: #141414; --text: #d6d6d6; --dim: #8c8c8c; --accent: #ffa630; --ink: #141414;
+  --bg: #1f1f1f; --panel: #2b2b2b; --panel2: #363636; --line: #141414; --text: #d6d6d6; --dim: #8c8c8c; --accent: #ffa630; --ink: #141414; --auto: #ff5a52;
   --font: 'Archivo', system-ui, sans-serif; --r: 3px; --r2: 2px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
@@ -312,6 +312,37 @@ input[type=range] { accent-color: var(--accent); }
 .minihelp .gitem code { display: block; margin: 4px 0; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
 .minihelp .gref { font-size: 14px; margin: 14px 0 0; }
 .epair { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* automation: Rec button, automated controls, the per-scene list */
+#rec { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; }
+#rec i { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--dim); }
+#rec.on, #rec.on:hover { background: var(--panel2); border-color: var(--auto); color: inherit; }
+#rec.on i { background: var(--auto); }
+#rec.live, #rec.live:hover { background: var(--auto); border-color: var(--auto); }
+#rec.live i { background: var(--ink); animation: recblink 1.2s steps(2, jump-none) infinite; }
+@keyframes recblink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { #rec.live i { animation: none; } }
+.knob.automated svg .arc { stroke: var(--auto); }
+.knob.automated label::before { content: '● '; color: var(--auto); font-size: 8px; vertical-align: 1px; }
+.sel.automated select { border-color: var(--auto); }
+.sel.automated label::before { content: '● '; color: var(--auto); font-size: 8px; vertical-align: 1px; }
+.fader.automated .cap { background: var(--auto); }
+button.automated { box-shadow: inset 0 -2px 0 var(--auto); }
+.bpm.automated b { color: var(--auto); }
+[data-path] { -webkit-touch-callout: none; }
+.acount[hidden] { display: none; }
+.acount { display: inline-block; margin-left: 4px; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--auto); color: var(--ink); font-size: 11px; text-align: center; vertical-align: middle; }
+.autop { margin-top: 14px; }
+.autop-h { gap: 10px; align-items: center; flex-wrap: wrap; }
+.autop-h h3 { margin: 0; font-size: 14px; }
+.autop-s { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.autop-s > b { font-size: 13px; min-width: 70px; }
+.achip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--r2); background: var(--panel); }
+.achip > button { border: 0; background: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 7px; }
+.aspark { width: 40px; height: 14px; color: var(--auto); flex: none; }
+.amenu { display: flex; flex-direction: column; gap: 8px; min-width: min(320px, 80vw); }
+.amenu .hint { margin: 0; }
+.amenu-b { text-align: left; }
 </style><style id="usercss"></style>
 </head><body>
 <header id="top"></header>
@@ -426,7 +457,15 @@ input[type=range] { accent-color: var(--accent); }
 <p>Every use shares the inside: edit it once and all uses change. Each use keeps its own knob values. Paths reach a box knob as <code>track/inst/mod/ratio</code>, and any inner module as <code>track/inst/mod/osc/fine</code>. This works for lanes, step locks, scenes and MIDI. Built-in sub-patches you can use by name without defining them: <code>fmop</code> (FM operator), <code>amp</code> (Amp envelope), <code>filterenv</code> (Filter + envelope), <code>echo</code> (Filtered echo), <code>stage</code> (Phaser stage pair). The page copies them into the song's library. You can also write a definition inline as <code>"patch": {…}</code>; it moves into the library under its label.</p>
 <h2>Scenes</h2>
 <p><code>{name, bars, play:{trackId: "A"|0|...}, set:{path: value}, ramp:{path: [from, to]}}</code>. Tracks left out of <code>play</code> are silent. <code>set</code> applies when the scene starts; <code>ramp</code> moves a value smoothly across the scene (filter sweeps, delay throws). In Song mode the scenes play in order and loop.</p>
-<p><b>Paths</b>: <code>bpm</code>, <code>swing</code>, <code>midi/cc/ch/cc</code>, <code>track/mix/vol|pan|mute|solo</code>, <code>track/send/A</code>, <code>track/inst/node/param</code>, <code>track/fx/index/param</code>, <code>track/fx/index/node/param</code> (custom effect), <code>track/fx/index/on</code>, <code>track/gen/index/density</code> (dice), <code>track/pat/index/change</code> (Turing, Cartesian and cells knobs), <code>track/pat/index/hits/row</code>, <code>…/rot/row</code>, <code>…/acc/row</code> (Euclidean rows); inside sub-patches <code>track/inst/sub/knob</code> or <code>track/inst/sub/inner/param</code>. Returns and master use their ids (<code>A</code>, <code>B</code>, <code>master</code>) as the track.</p>
+<h2>Automation</h2>
+<p>Recorded parameter moves, from the ● Rec button or written by hand. A scene keeps them in <code>auto</code>: <code>{path: [[beat, value], …]}</code>, with beats counted from the start of the scene (0 up to bars × 4) and looping with it. Numbers glide in a straight line from point to point, and from the last point round to the first. Switches (<code>true</code>/<code>false</code>, <code>…/mute</code>, <code>…/on</code>), menu choices (text) and pattern launches jump and hold. A song without scenes keeps them at the top level in <code>auto</code>, looping every <code>autoBars</code> bars (1–64; by default the longest pattern). <code>autoBase: {path: value}</code> is what each automated parameter plays where it is not automated (other scenes, and after stop). Duplicating a scene copies its automation.</p>
+<pre>"scenes": [{ "name": "Build", "bars": 4, "play": { "bass": "A" },
+  "auto": { "bass/fx/0/cut": [[0, 300], [12, 2400], [15.5, 600]],
+            "hat/mix/mute": [[0, false], [14, true]],
+            "bass/play": [[0, -1], [8, 1]] } }],
+"autoBase": { "bass/fx/0/cut": 900, "hat/mix/mute": false, "bass/play": -1 }</pre>
+<p>Any path below can be automated. <code>track/play</code> is a pattern launch: the index of the pattern to play from that point on (<code>-1</code> = the scene's own). Use <code>ramp</code> for one simple sweep and <code>auto</code> for curves, steps and recorded takes.</p>
+<p><b>Paths</b>: <code>bpm</code>, <code>swing</code>, <code>midi/cc/ch/cc</code>, <code>track/mix/vol|pan|mute|solo</code>, <code>track/play</code> (pattern launch, for automation), <code>track/send/A</code>, <code>track/inst/node/param</code>, <code>track/fx/index/param</code>, <code>track/fx/index/node/param</code> (custom effect), <code>track/fx/index/on</code>, <code>track/gen/index/density</code> (dice), <code>track/pat/index/change</code> (Turing, Cartesian and cells knobs), <code>track/pat/index/hits/row</code>, <code>…/rot/row</code>, <code>…/acc/row</code> (Euclidean rows); inside sub-patches <code>track/inst/sub/knob</code> or <code>track/inst/sub/inner/param</code>. Returns and master use their ids (<code>A</code>, <code>B</code>, <code>master</code>) as the track.</p>
 <h2>Modules (patch building blocks)</h2>
 <table><tr><th>type</th><th>what it does</th><th>inputs</th><th>outputs</th><th>params</th></tr><tr><td><b>note</b></td><td>The played note: pitch (octaves from C4), velocity 0..1, gate 0/1, trig (a one-sample pulse at each note), rand (a new random value −1..1 per note) and voice (which voice plays, 0, 1, 2…).</td><td>—</td><td>pitch, vel, gate, trig, rand, voice</td><td>—</td></tr><tr><td><b>osc</b></td><td>Oscillator. Follows the note pitch × ratio unless hz &gt; 0. pitch input = octaves, pm = phase mod (1 = one cycle), sync = hard sync (restarts on each rise), pw = pulse-width modulation.</td><td>pitch, pm, amp, sync, pw</td><td>out</td><td><code>wave</code> sine | tri | saw | square | pulse (default sine)<br><code>oct</code> -4…4 oct (default 0)<br><code>ratio</code> 0.125…16 × (default 1)<br><code>fine</code> -100…100 ct (default 0)<br><code>hz</code> 0…8000 Hz (default 0)<br><code>pw</code> 0.05…0.95 (default 0.5)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>op</b></td><td>FM operator: sine + its own ADSR + self-feedback. Chain ops into each other's pm input to build FM algorithms.</td><td>pm, pitch, amp</td><td>out</td><td><code>ratio</code> 0.125…32 × (default 1)<br><code>fine</code> -100…100 ct (default 0)<br><code>hz</code> 0…8000 Hz (default 0)<br><code>level</code> 0…1 (default 0.5)<br><code>a</code> 0.0005…10 s (default 0.002)<br><code>d</code> 0.001…10 s (default 0.4)<br><code>s</code> 0…1 (default 0.6)<br><code>r</code> 0.001…10 s (default 0.3)<br><code>fb</code> 0…1 (default 0)<br><code>vel</code> 0…1 (default 0.5)<br><code>mode</code> adsr | ad (default adsr)</td></tr><tr><td><b>noise</b></td><td>Noise generator (white, pink, brown).</td><td>amp</td><td>out</td><td><code>color</code> white | pink | brown (default white)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>env</b></td><td>Envelope triggered by each note. adsr follows the gate; ad ignores note length (drums). A trig input restarts it from inside the patch (its level is the gate).</td><td>trig</td><td>out</td><td><code>mode</code> adsr | ad (default adsr)<br><code>a</code> 0.0005…10 s (default 0.005)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0.5)<br><code>r</code> 0.001…10 s (default 0.3)<br><code>amt</code> -8…8 (default 1)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>lfo</b></td><td>Low frequency oscillator, bipolar ±amt. sync locks it to the tempo; retrig restarts it on each note.</td><td>rate</td><td>out</td><td><code>shape</code> sine | tri | saw | ramp | square | s&amp;h | smooth (default sine)<br><code>rate</code> 0.01…40 Hz (default 1)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>amt</code> -8…8 (default 1)<br><code>offset</code> -8…8 (default 0)<br><code>retrig</code> free | note (default free)</td></tr><tr><td><b>filter</b></td><td>State-variable filter. cut input = octaves of cutoff modulation. key = keyboard tracking. Built-in envelope: env = how many octaves each note opens the cutoff (negative closes it), shaped by a d s r; vel = velocity sensitivity.</td><td>in, cut</td><td>out</td><td><code>mode</code> lp | bp | hp | notch (default lp)<br><code>cut</code> 20…20000 Hz (default 1200)<br><code>res</code> 0…1 (default 0.2)<br><code>key</code> 0…1 (default 0)<br><code>drive</code> 1…10 (default 1)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>vca</b></td><td>Amplifier: out = in × cv × gain (cv counts as 1 when unpatched). Patch audio into cv for ring mod.</td><td>in, cv</td><td>out</td><td><code>gain</code> 0…4 (default 1)<br><code>bias</code> -1…1 (default 0)</td></tr><tr><td><b>mix</b></td><td>Four-input mixer.</td><td>a, b, c, d</td><td>out</td><td><code>a</code> 0…2 (default 1)<br><code>b</code> 0…2 (default 1)<br><code>c</code> 0…2 (default 1)<br><code>d</code> 0…2 (default 1)</td></tr><tr><td><b>shape</b></td><td>Waveshaper: tanh saturation, wavefolder, hard clip, sine shaper, bit crush.</td><td>in, drive</td><td>out</td><td><code>mode</code> tanh | fold | clip | sine | crush (default tanh)<br><code>drive</code> 1…40 (default 2)<br><code>bias</code> -1…1 (default 0)<br><code>level</code> 0…2 (default 0.8)</td></tr><tr><td><b>delay</b></td><td>Mono delay line with feedback and damping (build combs, flangers, Karplus strings). time input = octaves.</td><td>in, time</td><td>out</td><td><code>time</code> 0.1…2000 ms (default 250)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>track</code> off | on (default off)<br><code>fb</code> 0…0.999 (default 0.3)<br><code>damp</code> 100…20000 Hz (default 8000)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>follow</b></td><td>Envelope follower: turns the loudness of a signal into a control signal.</td><td>in</td><td>out</td><td><code>att</code> 0.0005…1 s (default 0.005)<br><code>rel</code> 0.001…4 s (default 0.2)<br><code>gain</code> 0…8 (default 1)</td></tr><tr><td><b>slew</b></td><td>Slew limiter / lag: smooths jumps (portamento for control signals).</td><td>in</td><td>out</td><td><code>time</code> 0.0005…5 s (default 0.05)</td></tr><tr><td><b>const</b></td><td>A constant value (offsets, fixed modulation).</td><td>—</td><td>out</td><td><code>value</code> -8…8 (default 1)</td></tr><tr><td><b>sampler</b></td><td>Sample player. Plays the note relative to root, or picks a slice when slices &gt; 0 (chop: slice 0 = root note, next note = next slice). out = left/mono, r = right.</td><td>pitch, pos, amp</td><td>out, r</td><td><code>sample</code> sample name (e.g. @break)<br><code>root</code> 0…127 note (default 60)<br><code>tune</code> -24…24 st (default 0)<br><code>start</code> 0…1 (default 0)<br><code>end</code> 0…1 (default 1)<br><code>slices</code> 0…64 (default 0)<br><code>loop</code> off | fwd | pingpong (default off)<br><code>mode</code> gate | oneshot (default gate)<br><code>reverse</code> off | on (default off)<br><code>track</code> on | off (default on)<br><code>rel</code> 0.002…5 s (default 0.02)<br><code>level</code> 0…2 (default 0.9)</td></tr><tr><td><b>grain</b></td><td>Granular player: sprays short windowed grains from a sample. pos/size/density/spray shape the cloud; scan moves through the sample. out = left, r = right.</td><td>pitch, pos, amp</td><td>out, r</td><td><code>sample</code> sample name (e.g. @break)<br><code>pos</code> 0…1 (default 0.3)<br><code>scan</code> -2…2 (default 0)<br><code>spray</code> 0…1 (default 0.05)<br><code>size</code> 5…1000 ms (default 90)<br><code>density</code> 1…120 Hz (default 25)<br><code>root</code> 0…127 note (default 60)<br><code>track</code> on | off (default on)<br><code>tune</code> -24…24 st (default 0)<br><code>detune</code> 0…12 st (default 0)<br><code>reverse</code> 0…1 (default 0)<br><code>width</code> 0…1 (default 0.6)<br><code>level</code> 0…2 (default 0.8)</td></tr><tr><td><b>supersaw</b></td><td>Supersaw: up to 9 detuned saws (JP-8000 style), spread in stereo. out = left, r = right.</td><td>pitch</td><td>out, r</td><td><code>voices</code> 1…9 (default 7)<br><code>detune</code> 0…1 (default 0.35)<br><code>mix</code> 0…1 (default 0.7)<br><code>width</code> 0…1 (default 0.8)<br><code>oct</code> -4…4 oct (default 0)<br><code>fine</code> -100…100 ct (default 0)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>wavetable</b></td><td>Wavetable oscillator morphing sine → triangle → saw → square → narrow pulse with pos (input adds to it).</td><td>pitch, pos, pm</td><td>out</td><td><code>pos</code> 0…1 (default 0.5)<br><code>oct</code> -4…4 oct (default 0)<br><code>ratio</code> 0.125…16 × (default 1)<br><code>fine</code> -100…100 ct (default 0)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>dahdsr</b></td><td>Envelope with delay and hold stages; loop on makes it repeat like an LFO while the gate is held. trig input restarts it (and its level is the gate).</td><td>trig</td><td>out</td><td><code>delay</code> 0…4 s (default 0)<br><code>a</code> 0.0005…10 s (default 0.01)<br><code>hold</code> 0…4 s (default 0)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0.6)<br><code>r</code> 0.001…10 s (default 0.4)<br><code>loop</code> off | on (default off)<br><code>amt</code> -8…8 (default 1)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>random</b></td><td>Random source: smooth or stepped random, a random walk, or the chaotic logistic map. New values at rate/sync, or on each trig.</td><td>rate, trig</td><td>out</td><td><code>mode</code> smooth | step | walk | chaos (default smooth)<br><code>rate</code> 0.01…50 Hz (default 2)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>amt</code> -8…8 (default 1)<br><code>offset</code> -8…8 (default 0)<br><code>chaos</code> 3.4…4 (default 3.9)</td></tr><tr><td><b>stepseq</b></td><td>A little step sequencer inside the patch: up to 16 values, clocked by the tempo (sync), a rate, or a clock input. amt scales the output.</td><td>clock, reset</td><td>out, gate, trig</td><td><code>len</code> 1…16 (default 8)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 1/16)<br><code>rate</code> 0.1…50 Hz (default 4)<br><code>glide</code> 0…1 (default 0)<br><code>amt</code> -8…8 (default 1)<br><code>s1</code> -1…1 (default 0)<br><code>s2</code> -1…1 (default 0)<br><code>s3</code> -1…1 (default 0)<br><code>s4</code> -1…1 (default 0)<br><code>s5</code> -1…1 (default 0)<br><code>s6</code> -1…1 (default 0)<br><code>s7</code> -1…1 (default 0)<br><code>s8</code> -1…1 (default 0)<br><code>s9</code> -1…1 (default 0)<br><code>s10</code> -1…1 (default 0)<br><code>s11</code> -1…1 (default 0)<br><code>s12</code> -1…1 (default 0)<br><code>s13</code> -1…1 (default 0)<br><code>s14</code> -1…1 (default 0)<br><code>s15</code> -1…1 (default 0)<br><code>s16</code> -1…1 (default 0)</td></tr><tr><td><b>clock</b></td><td>Pulse clock locked to the tempo (sync) or free (rate). gate is a square wave, trig a one-sample pulse.</td><td>rate, reset</td><td>gate, trig</td><td><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 1/16)<br><code>rate</code> 0.1…50 Hz (default 4)<br><code>width</code> 0.01…0.99 (default 0.5)</td></tr><tr><td><b>divider</b></td><td>Clock divider: passes every Nth rising edge (offset shifts which one).</td><td>in, reset</td><td>gate, trig</td><td><code>div</code> 1…32 (default 2)<br><code>offset</code> 0…31 (default 0)</td></tr><tr><td><b>sh</b></td><td>Sample &amp; hold: grabs the input on each rising edge of trig (or at each new note when trig is not patched).</td><td>in, trig</td><td>out</td><td>—</td></tr><tr><td><b>scale</b></td><td>Attenuverter: out = in × gain + offset (negative gain inverts).</td><td>in</td><td>out</td><td><code>gain</code> -8…8 (default 1)<br><code>offset</code> -8…8 (default 0)</td></tr><tr><td><b>fn</b></td><td>One-input function: abs, half-rectify, invert, sign, square, square root, 2^x (octaves → ratio), log2, floor, fold into ±1, wrap into 0..1.</td><td>in</td><td>out</td><td><code>op</code> abs | half-rectify | invert | sign | square | sqrt | exp2 | log2 | floor | fold | wrap (default abs)</td></tr><tr><td><b>math</b></td><td>Two-input math: add, subtract, multiply, min, max, average, difference, divide. b is the knob when unpatched.</td><td>a, b</td><td>out</td><td><code>op</code> add | subtract | multiply | min | max | average | difference | divide (default add)<br><code>b</code> -8…8 (default 0)</td></tr><tr><td><b>compare</b></td><td>Comparator: gate is 1 while in is above the threshold (or the ref input), with hysteresis. trig pulses on each rise.</td><td>in, ref</td><td>gate, inv, trig</td><td><code>thresh</code> -8…8 (default 0)<br><code>hyst</code> 0…1 (default 0.01)</td></tr><tr><td><b>quant</b></td><td>Pitch quantiser: snaps a pitch signal (octaves) to a scale. "song" uses the song scale. absolute mode adds the note pitch first, so the result is in key whatever note plays.</td><td>in</td><td>out</td><td><code>scale</code> song | chromatic | major | minor | major pentatonic | minor pentatonic | dorian | phrygian | lydian | mixolydian | harmonic minor | whole tone | blues | fifths (default song)<br><code>root</code> 0…11 (default 0)<br><code>mode</code> absolute | relative (default absolute)</td></tr><tr><td><b>xfade</b></td><td>Crossfader between a and b; pos input adds to the knob. equal power keeps loudness steady.</td><td>a, b, pos</td><td>out</td><td><code>pos</code> 0…1 (default 0.5)<br><code>mode</code> linear | equal power (default linear)</td></tr><tr><td><b>ladder</b></td><td>Moog-style 4-pole ladder filter with saturating feedback: warm, squelchy, self-oscillates near res 1. Built-in envelope: env = octaves each note opens the cutoff, shaped by a d s r; vel = velocity sensitivity.</td><td>in, cut</td><td>out</td><td><code>mode</code> lp24 | lp12 | bp | hp (default lp24)<br><code>cut</code> 20…20000 Hz (default 800)<br><code>res</code> 0…1.1 (default 0.4)<br><code>drive</code> 1…10 (default 1.5)<br><code>key</code> 0…1 (default 0)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>formant</b></td><td>Vowel (formant) filter: three resonances morphing through a e i o u. shift moves all formants by octaves. Built-in envelope: env = octaves each note shifts the formants (a talking “wow”), shaped by a d s r.</td><td>in, vowel</td><td>out</td><td><code>vowel</code> 0…4 (default 0)<br><code>shift</code> -1…1 oct (default 0)<br><code>res</code> 0…1 (default 0.6)<br><code>mix</code> 0…1 (default 1)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>reson</b></td><td>Resonator bank: four tuned resonances (harmonic, bar, bell or glass ratios) that ring when struck. Feed it a short noise burst for mallets and bells.</td><td>in, pitch</td><td>out</td><td><code>tune</code> harmonic | bar | bell | glass (default harmonic)<br><code>decay</code> 0.02…10 s (default 1.2)<br><code>bright</code> 0…1 (default 0.5)<br><code>track</code> on | off (default on)<br><code>hz</code> 20…5000 Hz (default 220)<br><code>level</code> 0…2 (default 0.5)</td></tr><tr><td><b>onepole</b></td><td>Gentle one-pole low- or high-pass (6 dB/oct) tone control. cut input = octaves. Built-in envelope: env = octaves each note moves the cutoff, shaped by a d s r.</td><td>in, cut</td><td>out</td><td><code>mode</code> lp | hp (default lp)<br><code>cut</code> 20…20000 Hz (default 2000)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>apf</b></td><td>First-order all-pass: shifts phase around freq without changing level. Chain a few, sweep freq with an LFO and mix with the dry signal for a phaser.</td><td>in, freq</td><td>out</td><td><code>freq</code> 20…20000 Hz (default 1000)</td></tr><tr><td><b>diffuser</b></td><td>Schroeder all-pass diffuser (delay + feedback/feedforward): the building block of reverbs. Chain 3–6 with different times.</td><td>in, time</td><td>out</td><td><code>time</code> 0.5…100 ms (default 12)<br><code>g</code> -0.95…0.95 (default 0.6)</td></tr><tr><td><b>dcblock</b></td><td>Removes DC offset (very low frequencies), useful after asymmetric distortion or feedback.</td><td>in</td><td>out</td><td>—</td></tr><tr><td><b>eqband</b></td><td>One parametric EQ band (bell). freq input = octaves. Built-in envelope: env = octaves each note sweeps the band, shaped by a d s r.</td><td>in, freq</td><td>out</td><td><code>freq</code> 20…20000 Hz (default 1000)<br><code>gain</code> -24…24 dB (default 6)<br><code>q</code> 0.2…12 (default 1)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>crush</b></td><td>Bit depth and sample-rate reducer.</td><td>in</td><td>out</td><td><code>bits</code> 1…16 bit (default 8)<br><code>down</code> 1…64 × (default 4)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>comp</b></td><td>Compressor. Patch a signal into side to duck one sound with another (sidechain).</td><td>in, side</td><td>out, gr</td><td><code>thresh</code> -60…0 dB (default -18)<br><code>ratio</code> 1…20 :1 (default 4)<br><code>att</code> 0.1…100 ms (default 5)<br><code>rel</code> 10…2000 ms (default 120)<br><code>makeup</code> 0…24 dB (default 0)</td></tr><tr><td><b>gate</b></td><td>Noise gate: silences the signal below the threshold. A key input opens it from another signal (trance gate, gated reverb).</td><td>in, key</td><td>out</td><td><code>thresh</code> -80…0 dB (default -40)<br><code>att</code> 0.1…50 ms (default 1)<br><code>rel</code> 5…2000 ms (default 80)<br><code>floor</code> -80…0 dB (default -80)</td></tr><tr><td><b>pitchshift</b></td><td>Pitch shifter (two crossfading delay heads). semis input adds semitones. Put it in a delay feedback loop for shimmer.</td><td>in, semis</td><td>out</td><td><code>semis</code> -24…24 st (default 12)<br><code>window</code> 10…250 ms (default 70)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>freeze</b></td><td>Freeze / looper: while frozen (knob or a gate on freeze) it loops the last len ms; otherwise it passes the input.</td><td>in, freeze</td><td>out</td><td><code>freeze</code> off | on (default off)<br><code>len</code> 20…4000 ms (default 400)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>reverse</b></td><td>Reverse delay: plays the last len ms backwards, chunk by chunk, with smooth overlaps. fb feeds it back for washes.</td><td>in</td><td>out</td><td><code>len</code> 50…2000 ms (default 300)<br><code>fb</code> 0…0.9 (default 0)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>stereo</b></td><td>Stereo view inside custom effects (which run once per channel): mid = (this + other)/2, side = (this − other)/2, other channel input, other channel output (last sample), and side sign (+1 left, −1 right). mid + side × width = a stereo-width control.</td><td>—</td><td>mid, side, other, prev, sign</td><td>—</td></tr><tr><td><b>pan</b></td><td>Pan inside custom effects: turns this channel down as the signal moves to the other side (−1 left … +1 right). pan input adds to the knob.</td><td>in, pan</td><td>out</td><td><code>pan</code> -1…1 (default 0)</td></tr><tr><td><b>inlet</b></td><td>Sub-patch input: each inlet becomes an input socket on the sub-patch box, named after this module. value is used when nothing is plugged in from outside.</td><td>in</td><td>out</td><td><code>value</code> -10…10 (default 0)</td></tr><tr><td><b>outlet</b></td><td>Sub-patch output: each outlet becomes an output socket on the sub-patch box, named after this module.</td><td>in</td><td>out</td><td>—</td></tr><tr><td><b>sub</b></td><td>Sub-patch: a reusable patch from the song’s patch library, used like one module.</td><td>—</td><td>—</td><td>—</td></tr><tr><td><b>in</b></td><td>Effect input (only inside custom effect graphs).</td><td>—</td><td>out</td><td>—</td></tr><tr><td><b>out</b></td><td>Output of the graph. In an instrument it is the voice output (with pan). Patch a right channel into r for stereo. vel = how much the note velocity sets the loudness (0 = not at all; velocity 0.8 always plays at the level set, accents louder, ghost notes softer).</td><td>in, pan, r</td><td>—</td><td><code>level</code> 0…2 (default 0.8)<br><code>pan</code> -1…1 (default 0)<br><code>vel</code> 0…1 (default 0.7)</td></tr></table>
 <h2>Effects</h2>
@@ -2077,6 +2116,12 @@ function RigEngine() {
     if (m) { const ch = clamp(+m[1] | 0, 1, m[2] ? 32 : 31); return 'hw:' + ch + m[2]; }
     return String(v);
   }
+  // how many bars the longest pattern of a song lasts (a sensible loop for automation in a song without scenes)
+  function songLoopBars(s) {
+    let b = 1;
+    for (const t of s.tracks || []) for (const p of t.patterns || []) if (!p.gen) b = Math.max(b, Math.ceil((p.mini ? p.mini.bars * 4 : (p.len || 16) / (p.div || 4)) / 4 - 1e-9));
+    return clamp(b, 1, 16);
+  }
   // does a pattern play anything at all? (notes, or a generator / machine)
   function patHasContent(p) { return !!(p && ((p.notes && p.notes.length) || p.gen || algoOf(p))); }
   function normTrack(t, i, used, warn) {
@@ -2184,8 +2229,13 @@ function RigEngine() {
       }
       if (sc.set) o.set = sc.set;
       if (sc.ramp) o.ramp = sc.ramp;
+      const au = normAutoTable(sc.auto, o.bars * 4); if (au) o.auto = au;
       return o;
     });
+    // automation without scenes, and the values parameters go back to where they are not automated
+    if (raw.autoBars !== undefined || raw.auto) s.autoBars = clamp(Math.round(+raw.autoBars || 0) || songLoopBars(s), 1, 64);
+    { const au = normAutoTable(raw.auto, (s.autoBars || 4) * 4); if (au) s.auto = au; }
+    if (raw.autoBase && typeof raw.autoBase === 'object') { const b = {}; for (const k in raw.autoBase) { const v = autoVal(raw.autoBase[k]); if (v !== null) b[k] = v; } if (Object.keys(b).length) s.autoBase = b; }
     if (Object.keys(ctx.lib).length) s.patches = ctx.lib;
     } finally { CUR_CTX = prevCtx; }
     return { song: s, warnings };
@@ -2253,7 +2303,7 @@ function RigEngine() {
       else if (!isBus) { this.setInst(def); this.setPatterns(def.patterns); }
       this.setFx(def.fx);
     }
-    setDef(def) { const n = noteNum(def.note !== undefined ? def.note : def.kind === 'drum' ? 36 : 60); this.defNote = n === null ? 60 : clamp(n, 0, 127); this.loop = def.loop | 0; }
+    setDef(def) { const n = noteNum(def.note !== undefined ? def.note : def.kind === 'drum' ? 36 : 60); this.defNote = n === null ? 60 : clamp(n, 0, 127); this.loopPat = def.loop | 0; } // loopPat: the pattern played without scenes (t.loop counts loops)
     setMix(def) {
       this.mix = { vol: def.vol, pan: def.pan, mute: !!def.mute, solo: !!def.solo };
       this.out = def.out || (def.id === 'master' ? 'hw:1' : 'master');
@@ -3050,6 +3100,67 @@ function RigEngine() {
     return null;
   }
 
+  // ---------------------------------------------------------------- automation
+  // Parameter moves recorded with Rec, per scene: scene.auto = {path: [[beat, value], …]}, beats from the start of the scene,
+  // looping with it. A song without scenes keeps them in song.auto over a loop of song.autoBars bars. song.autoBase[path] is
+  // the value a parameter goes back to in scenes that do not automate it, and when playback stops. Numbers glide from point
+  // to point; switches and menus (true/false, text) jump and hold.
+  const AUTO_MAX = 4000;
+  const autoVal = (v) => (typeof v === 'number' ? (isFinite(v) ? Math.round(v * 1e5) / 1e5 : null) : typeof v === 'boolean' || typeof v === 'string' ? v : null);
+  function normAutoTable(a, len) {
+    if (!a || typeof a !== 'object') return undefined;
+    const o = {};
+    for (const path in a) {
+      if (!Array.isArray(a[path]) || typeof path !== 'string' || !path.includes('/') && !/^(bpm|swing)$/.test(path)) continue;
+      const pts = [];
+      for (const pt of a[path]) { if (!Array.isArray(pt)) continue; const t = +pt[0], v = autoVal(pt[1]); if (!isFinite(t) || v === null) continue; pts.push([clamp(Math.round(t * 1000) / 1000, 0, Math.max(0, len - 0.001)), v]); }
+      pts.sort((x, y) => x[0] - y[0]);
+      const ded = []; for (const pt of pts) { if (ded.length && Math.abs(ded[ded.length - 1][0] - pt[0]) < 1e-9) ded[ded.length - 1] = pt; else ded.push(pt); }
+      if (ded.length) o[path] = ded.length > AUTO_MAX ? simplifyAuto(ded, 0.002, AUTO_MAX) : ded;
+    }
+    return Object.keys(o).length ? o : undefined;
+  }
+  // the value at pos (beats) in a looping lane of len beats
+  function autoAt(pts, pos, len, hold) {
+    const n = pts.length; if (!n) return undefined; if (n === 1) return pts[0][1];
+    let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (pts[m][0] <= pos) lo = m + 1; else hi = m; } // first point after pos
+    const a = lo === 0 ? pts[n - 1] : pts[lo - 1], b = lo === n ? pts[0] : pts[lo];
+    if (hold || typeof a[1] !== 'number' || typeof b[1] !== 'number') return a[1];
+    const ta = lo === 0 ? a[0] - len : a[0], tb = lo === n ? b[0] + len : b[0];
+    return tb - ta < 1e-9 ? b[1] : a[1] + (b[1] - a[1]) * (pos - ta) / (tb - ta);
+  }
+  // remove the points in (a, b], wrapping round the loop when b < a; true if any went
+  function wipeAuto(pts, a, b, len) {
+    if (Math.abs(b - a) < 1e-9) return false;
+    const n0 = pts.length, inR = (t) => (b > a ? t > a + 1e-9 && t <= b + 1e-9 : t > a + 1e-9 || t <= b + 1e-9);
+    for (let i = pts.length - 1; i >= 0; i--) if (inR(pts[i][0])) pts.splice(i, 1);
+    return pts.length !== n0;
+  }
+  function putAuto(pts, t, v) {
+    t = Math.round(t * 1000) / 1000;
+    let i = 0; while (i < pts.length && pts[i][0] < t - 1e-9) i++;
+    if (i < pts.length && Math.abs(pts[i][0] - t) < 1e-9) pts[i][1] = v; else pts.splice(i, 0, [t, v]);
+  }
+  // fewer points for the same curve (Ramer–Douglas–Peucker on each run of numbers; eps is a fraction of the value range)
+  function simplifyAuto(pts, eps, max) {
+    const nums = pts.filter((p) => typeof p[1] === 'number').map((p) => p[1]);
+    const range = nums.length ? Math.max(...nums) - Math.min(...nums) : 0, tol = Math.max(1e-9, range * eps);
+    const keep = new Uint8Array(pts.length);
+    const rdp = (i, j) => {
+      keep[i] = keep[j] = 1; if (j - i < 2) return;
+      let far = -1, fd = tol;
+      for (let k = i + 1; k < j; k++) { const x = (pts[k][0] - pts[i][0]) / Math.max(1e-9, pts[j][0] - pts[i][0]), d = Math.abs(pts[k][1] - (pts[i][1] + (pts[j][1] - pts[i][1]) * x)); if (d > fd) { fd = d; far = k; } }
+      if (far >= 0) { rdp(i, far); rdp(far, j); }
+    };
+    let s0 = 0;
+    for (let k = 0; k <= pts.length; k++) {
+      const num = k < pts.length && typeof pts[k][1] === 'number';
+      if (!num) { if (k - 1 >= s0) rdp(s0, k - 1); if (k < pts.length) keep[k] = 1; s0 = k + 1; }
+    }
+    let out = pts.filter((_, k) => keep[k]);
+    if (max && out.length > max) { const st = out.length / max; out = Array.from({ length: max }, (_, k) => out[Math.floor(k * st)]); }
+    return out;
+  }
   // knobs of algorithmic patterns that can be moved live (macros, modulation lanes, scenes): [min, max, default, curve, whole numbers]
   const ALGO_KNOBS = { change: [0, 1, 0.1, 'lin'], density: [0, 1, 0.75, 'lin'], fill: [0, 1, 0.3, 'lin'], l: [0.05, 8, 0.9, 'exp'], max: [1, 16, 4, 'lin', 1], every: [1, 16, 1, 'lin', 1], x: [1, 64, 1, 'lin', 1], y: [1, 64, 4, 'lin', 1] };
   // ---- arpeggiator (a chords mode): the pattern's notes say when, the chord (or the notes hit together) says which
@@ -3237,6 +3348,88 @@ function RigEngine() {
       this.progList = null; this.progLen = 4; this.progRestart = 'scene'; this.progRev = 0; this.playBeat = 0;
       this.order = []; this.groups = []; this.soloSet = new Set(); this.acc = new Float64Array(34); this.chPk = new Float64Array(34); this.nOut = 2;
       this.arps = []; this.fill = false; this.arpRnd = mkRng(7);
+      this.touch = {}; this.autoRefs = {}; this.autoDirty = new Set(); this.autoMeta = false; this.autoVals = {};
+    }
+    // ---- automation (see normAutoTable)
+    autoKey() { return this.scenes.length ? this.scene : -1; }
+    autoTable(make) {
+      if (this.scenes.length) { const sc = this.scenes[this.scene]; if (!sc) return null; if (!sc.auto && make) sc.auto = {}; return sc.auto || null; }
+      if (!this.song) return null; if (!this.song.auto && make) this.song.auto = {}; return this.song.auto || null;
+    }
+    autoLen() { return this.scenes.length ? (this.scenes[this.scene] ? this.scenes[this.scene].bars * 4 : 16) : ((this.song && this.song.autoBars) || 4) * 4; }
+    autoPos() { const L = this.autoLen(); return ((this.sceneBeat % L) + L) % L; }
+    // where in the loop a move happened: at is the audio clock when it was made (the editor sends it, minus the output latency,
+    // so a take lands where it was heard); messages reach the audio thread in bursts, so this keeps a take's shape. On a
+    // 1/1000-beat grid, the same one the points are stored on.
+    autoPosAt(at) {
+      const L = this.autoLen();
+      let lag = 0;
+      if (at !== undefined && isFinite(at) && typeof currentTime === 'number') lag = Math.min(clamp(currentTime - at, 0, 0.5) * this.G.bpm / 60, this.sceneBeat); // not back past the start of this pass
+      const p = ((((this.sceneBeat - lag) % L) + L) % L);
+      return Math.min(Math.round(p * 1000) / 1000, Math.max(0, L - 0.001));
+    }
+    autoRef(path) { let r = this.autoRefs[path]; if (r === undefined) { try { r = this.resolve(path) || null; } catch (e) { r = null; } this.autoRefs[path] = r; } return r; }
+    // every 64 samples while playing: move each automated parameter; a parameter being recorded wipes what the playhead passes
+    autoTick() {
+      const tab = this.autoTable(false), key = this.autoKey();
+      let any = false; for (const k in this.touch) { any = true; break; }
+      if (!tab && !any) return;
+      const pos = this.autoPos(), L = this.autoLen(), posG = this.autoPosAt();
+      for (const path in this.touch) {
+        const tc = this.touch[path];
+        if (tc.key !== key) { delete this.touch[path]; continue; }
+        const d = (((posG - tc.last) % L) + L) % L; if (!(d > 0 && d < L / 2)) continue; // only ever forwards
+        const pts = tab && tab[path]; if (pts && wipeAuto(pts, tc.last, posG, L)) this.autoDirty.add(path);
+        tc.last = posG;
+      }
+      if (!tab) return;
+      for (const path in tab) {
+        if (this.touch[path]) continue;
+        const r = this.autoRef(path); if (!r) continue;
+        const sp = r.spec || {}, v = autoAt(tab[path], pos, L, sp.hold || sp.bool || !!sp.options); if (v === undefined) continue;
+        if (r._av !== v) { r._av = v; r.set(v); this.autoVals[path] = v; }
+      }
+    }
+    // a recorded move: written at the playhead into the scene playing (or the song's loop), overwriting as it goes
+    autoRec(path, v, before, at) {
+      v = autoVal(v); if (v === null) return;
+      const key = this.autoKey(), tab = this.autoTable(true); if (!tab) return;
+      if (!this.scenes.length && !this.song.autoBars) { this.song.autoBars = songLoopBars(this.song); this.autoMeta = true; }
+      const pos = this.autoPosAt(at), L = this.autoLen(), pts = tab[path] || (tab[path] = []);
+      const base = this.song.autoBase || (this.song.autoBase = {});
+      if (base[path] === undefined && before !== undefined && autoVal(before) !== null) { base[path] = autoVal(before); this.autoMeta = true; }
+      let tc = this.touch[path];
+      if (!tc || tc.key !== key) {
+        tc = this.touch[path] = { key, last: pos, v, fresh: !pts.length };
+        // a new lane: the old value plays up to the first move
+        const b0 = autoVal(before !== undefined ? before : base[path]);
+        if (tc.fresh && b0 !== null && pos > 0.01) { putAuto(pts, 0, b0); if (typeof b0 === 'number') putAuto(pts, pos - 0.001, b0); }
+      } else { const d = (((pos - tc.last) % L) + L) % L; if (d > 0 && d < L / 2) { wipeAuto(pts, tc.last, pos, L); tc.last = pos; } } // a late message (behind the wipe) only adds its point
+      const dv = (((pos - (tc.vt !== undefined ? tc.vt : pos)) % L) + L) % L;
+      if (dv < L / 2) { tc.v = v; tc.vt = pos; } // the value held after the take is the latest in time, not in arrival
+      putAuto(pts, pos, v); this.autoVals[path] = v;
+      const r = this.autoRef(path); if (r) r._av = v;
+      this.autoDirty.add(path);
+    }
+    // the hand lets go: hold the last value up to here, then tidy the curve
+    autoTouchEnd(at) {
+      const tab = this.autoTable(false), key = this.autoKey(), pos = this.autoPosAt(at);
+      for (const path in this.touch) {
+        const tc = this.touch[path]; delete this.touch[path];
+        if (!tab || tc.key !== key || !tab[path]) continue;
+        const pts = tab[path];
+        if (!pts.some((q) => Math.abs(q[0] - pos) < 1e-9)) putAuto(pts, pos, tc.v);
+        if (tc.fresh && typeof tc.v === 'number' && pos < this.autoLen() - 0.002 && !pts.some((q) => q[0] > pos + 1e-9)) putAuto(pts, this.autoLen() - 0.001, tc.v); // a new lane holds the last value to the loop end
+        const r = this.autoRef(path), sp = r && r.spec;
+        const sim = typeof tc.v === 'number' ? simplifyAuto(pts, sp && isFinite(sp.max - sp.min) && sp.max > sp.min ? 0.002 * (sp.max - sp.min) / Math.max(1e-9, (() => { const ns = pts.filter((q) => typeof q[1] === 'number').map((q) => q[1]); return ns.length ? Math.max(1e-9, Math.max(...ns) - Math.min(...ns)) : 1; })()) : 0.002, AUTO_MAX) : pts;
+        tab[path] = sim; this.autoDirty.add(path);
+      }
+    }
+    // put parameters back to their un-automated values (scenes that do not automate them, and stop)
+    autoRestore(onlyMissing) {
+      const base = this.song && this.song.autoBase; if (!base) return;
+      const tab = this.autoTable(false);
+      for (const path in base) { if (onlyMissing && tab && tab[path]) continue; const r = this.autoRef(path); if (r) { r.set(base[path]); r._av = undefined; } }
     }
     // running arpeggios: step each one whose next note is due (runs on the clock even when stopped, for held keys)
     arpTick() {
@@ -3304,6 +3497,7 @@ function RigEngine() {
       if (this.playing) this.startScene(this.scene, true);
     }
     msg(m) {
+      if (!/^(p|touchend|fill|note|non|noff|mode|auto|cc|clock|jump)$/.test(m.t)) this.autoRefs = {}; // the patch may have changed: look the paths up again
       if (m.t === 'song' || m.t === 'track' || m.t === 'bus') this.rev++;
       switch (m.t) {
         case 'song': this.load(m.song); break;
@@ -3330,28 +3524,32 @@ function RigEngine() {
           t.setFx(m.bus.fx); t.mix.vol = m.bus.vol; t.mix.pan = m.bus.pan; t.out = m.bus.out || (m.bus.id === 'master' ? 'hw:1' : 'master'); this.reroute(); break;
         }
         case 'scenes': this.scenes = m.scenes; this.song.scenes = m.scenes; break;
-        case 'p': { const f = this.setter(m.path); if (f) f(m.v); break; }
+        case 'p': {
+          const r = this.resolve(m.path); if (!r) break;
+          const before = m.rec && r.get ? r.get() : undefined;
+          r.set(m.v);
+          if (m.rec && this.playing) this.autoRec(m.path, m.v, before, m.at);
+          else if (!m.norec && this.song && this.song.autoBase && m.path in this.song.autoBase && autoVal(m.v) !== null) { // moved by hand without Rec: the value it keeps outside its automation; the automation itself plays on
+            this.song.autoBase[m.path] = autoVal(m.v); this.autoMeta = true;
+            const ar = this.autoRefs[m.path]; if (ar) ar._av = undefined;
+          }
+          break;
+        }
+        case 'touchend': this.autoTouchEnd(m.at); break;
+        case 'auto': // the song-level automation (no scenes), its loop length and the un-automated values, from the editor
+          if (!this.song) break;
+          if ('auto' in m) { if (m.auto) this.song.auto = m.auto; else delete this.song.auto; }
+          if (m.autoBars) this.song.autoBars = clamp(m.autoBars | 0, 1, 64);
+          if ('autoBase' in m) { if (m.autoBase) this.song.autoBase = m.autoBase; else delete this.song.autoBase; }
+          for (const k in this.autoRefs) if (this.autoRefs[k]) this.autoRefs[k]._av = undefined;
+          break;
         case 'play': this.G.beat = 0; this.playBeat = 0; this.playing = true; this.startScene(m.scene !== undefined ? m.scene : this.scene, true); break;
-        case 'stop': this.playing = false; this.arps = []; for (const t of this.tracks) { t.releaseLocks(); t.arpRun = null; for (const v of t.voices) v.gate = 0; } break;
+        case 'stop': this.playing = false; this.autoTouchEnd(); this.autoRestore(false); this.autoVals = {}; this.arps = []; for (const t of this.tracks) { t.releaseLocks(); t.arpRun = null; for (const v of t.voices) v.gate = 0; } break;
         case 'fill': this.fill = !!m.on; break;
         case 'mode': this.mode = m.v; break;
         case 'scale': this.G.scale = m.pcs && m.pcs.length ? m.pcs.slice() : null; if (m.root !== undefined) this.G.key = ((m.root | 0) % 12 + 12) % 12; break;
         case 'tuning': this.song.tuning = m.tuning || undefined; this.tun = m.tuning ? tuningTable(m.tuning) : null; break;
-        case 'force': { // play pattern m.pat on this track now, ignoring the arrangement (-1 = back to the scene)
-          const t = this.byId[m.id]; if (!t || t.isBus) break;
-          t.force = m.pat >= 0 ? m.pat : -1;
-          if (!this.playing) break;
-          const sc = this.scenes[this.scene];
-          const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loop;
-          t.releaseLocks(); t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0;
-          t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null; t.patIndex = t.pat ? pi : -1;
-          if (!t.pat) { for (const v of t.voices) v.gate = 0; break; }
-          if (t.pat.algo) this.algoReset(t);
-          if (t.pat.gen) { const sd = t.pat.gen.seed; t.rng = mkRng(sd ? sd : (Math.random() * 4294967296) >>> 0); t.nextBeat = Math.ceil(this.sceneBeat * 4 - 1e-9) / 4; }
-          else if (t.pat.algo === 'mini') { const k = Math.floor(this.sceneBeat / t.pat.cb + 1e-9); t.stepCount = k; t.nextBeat = k * t.pat.cb; } // starts mid-cycle: what already passed is skipped
-          else { const k = Math.ceil(this.sceneBeat * t.pat.div - 1e-9); t.stepCount = k; t.nextBeat = k / t.pat.div; }
-          break;
-        }
+        case 'force': { const t = this.byId[m.id]; if (t && !t.isBus) this.forceTrack(t, m.pat); break; }
         case 'jump': if (this.playing) this.pending = m.scene; else this.scene = m.scene; break;
         case 'note': { const t = this.byId[m.id]; if (t) t.play(m.n, m.v || 0.8, (m.dur || 0.25) * this.sr, false); break; }
         case 'non': { const t = this.byId[m.id]; if (t) t.play(m.n, m.v || 0.8, 1e9, false); break; }
@@ -3401,6 +3599,7 @@ function RigEngine() {
         const key = a[3], sp = ALGO_KNOBS[key]; if (!sp) return null;
         return { spec: num(sp[0], sp[1], sp[2], sp[3], sp[4] ? { step: 1 } : undefined), set: (v) => { const p = P(); if (p && p.algo && p.spec[key] !== undefined && typeof p.spec[key] === 'number') p.spec[key] = clamp(sp[4] ? Math.round(+v) : +v, sp[0], sp[1]); }, get: () => { const p = P(); return p && p.spec && typeof p.spec[key] === 'number' ? p.spec[key] : sp[2]; } };
       }
+      if (a[1] === 'play') return { spec: { min: -1, max: 63, def: -1, step: 1, hold: true }, set: (v) => { v = Math.round(+v); if (!isFinite(v)) return; v = v < 0 || v >= t.pats.length ? -1 : v; if (v !== t.force) this.forceTrack(t, v); }, get: () => t.force }; // the pattern launched live (-1 = the scene's)
       if (a[1] === 'send') { const i = this.returnIds.indexOf(a[2]); return i < 0 ? null : { spec: num(0, 1, 0), set: (v) => { t.sends[i] = clamp(+v, 0, 1); }, get: () => t.sends[i] }; }
       if (a[1] === 'inst' && t.shared) return nodeParam(t, a.slice(2));
       if (a[1] === 'fx') {
@@ -3413,14 +3612,33 @@ function RigEngine() {
       return null;
     }
     setter(path) { const r = this.resolve(path); return r ? r.set : null; }
+    // play pattern pat on track t now, ignoring the arrangement (-1 = back to what the scene plays)
+    forceTrack(t, pat) {
+      t.force = pat >= 0 ? pat : -1;
+      if (!this.playing) return;
+      const sc = this.scenes[this.scene];
+      const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loopPat;
+      t.releaseLocks(); t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0;
+      t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null; t.patIndex = t.pat ? pi : -1;
+      if (!t.pat) { for (const v of t.voices) v.gate = 0; return; }
+      if (t.pat.algo) this.algoReset(t);
+      if (t.pat.gen) { const sd = t.pat.gen.seed; t.rng = mkRng(sd ? sd : (Math.random() * 4294967296) >>> 0); t.nextBeat = Math.ceil(this.sceneBeat * 4 - 1e-9) / 4; }
+      else if (t.pat.algo === 'mini') { const k = Math.floor(this.sceneBeat / t.pat.cb + 1e-9); t.stepCount = k; t.nextBeat = k * t.pat.cb; } // starts mid-cycle: what already passed is skipped
+      else { const k = Math.ceil(this.sceneBeat * t.pat.div - 1e-9); t.stepCount = k; t.nextBeat = k / t.pat.div; }
+      return;
+    }
     startScene(i, hard) {
       const sc = this.scenes[i];
       this.scene = this.scenes.length ? clamp(i, 0, this.scenes.length - 1) : 0;
       this.sceneBeat = 0; this.pending = -1; this.sbBase = 0; this.sbN = 0; this.sbInc = 0;
       this.sceneLen = sc ? sc.bars * 4 : Infinity;
       if (hard) { this.arps = []; for (const t of this.tracks) { t.arpRun = null; t.arpI = 0; } }
+      { // recorded pattern launches (<track>/play) decide the pattern before the scene starts
+        const tab = this.scenes.length ? sc && sc.auto : this.song && this.song.auto, base = this.song && this.song.autoBase, L = this.autoLen();
+        for (const t of this.tracks) { const k = t.id + '/play'; if (tab && tab[k]) t.force = Math.round(autoAt(tab[k], 0, L)); else if (base && base[k] !== undefined) t.force = base[k]; }
+      }
       for (const t of this.tracks) {
-        const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loop, prev = t.pat;
+        const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loopPat, prev = t.pat;
         t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null;
         t.patIndex = t.pat ? pi : -1;
         t.releaseLocks();
@@ -3431,6 +3649,8 @@ function RigEngine() {
         if (!t.pat) for (const v of t.voices) v.gate = 0;
       }
       this.ramps = [];
+      this.touch = {}; this.autoVals = {}; for (const k in this.autoRefs) if (this.autoRefs[k]) this.autoRefs[k]._av = undefined;
+      this.autoRestore(true);
       if (sc && sc.set) for (const k in sc.set) { const f = this.setter(k); if (f) f(sc.set[k]); }
       if (sc && sc.ramp) for (const k in sc.ramp) { const f = this.setter(k), r = sc.ramp[k]; if (f && Array.isArray(r)) { f(r[0]); this.ramps.push([f, +r[0], +r[1]]); } }
     }
@@ -3511,6 +3731,7 @@ function RigEngine() {
       if (inc !== this.sbInc) { this.sbBase = this.sceneBeat; this.sbN = 0; this.sbInc = inc; }
       this.sceneBeat = this.sbBase + ++this.sbN * inc;
       this.playBeat += inc;
+      if ((G.sample & 63) === 0) this.autoTick();
       if ((G.sample & 63) === 0 && this.ramps.length) { const x = clamp(this.sceneBeat / this.sceneLen, 0, 1); for (const r of this.ramps) r[0](r[1] + (r[2] - r[1]) * x); }
       if (this.pending >= 0 && Math.floor(this.sceneBeat / 4 + 1e-9) !== prevBar) { this.startScene(this.pending); return; }
       if (this.sceneBeat >= this.sceneLen - 1e-9) {
@@ -3572,13 +3793,19 @@ function RigEngine() {
         const chords = {};
         if (this.progList && this.progList.length) chords.song = progIndex(this.progList, this.progLen, this.progRestart === 'song' ? this.playBeat : this.sceneBeat);
         for (const t of tr) if (t.chords && t.chords.list && t.chords.list.length) chords[t.id] = progIndex(t.chords.list, t.chords.len, this.sceneBeat);
-        this.post({ t: 'st', outs, chords, playing: this.playing, scene: this.scene, pending: this.pending, beat: this.sceneBeat, gb: this.G.beat, bpm: this.G.bpm, meters, steps, pats, gens, algo, fill: this.fill });
+        this.post({ t: 'st', outs, chords, playing: this.playing, scene: this.scene, pending: this.pending, beat: this.sceneBeat, gb: this.G.beat, bpm: this.G.bpm, meters, steps, pats, gens, algo, fill: this.fill, av: this.autoVals, ab: this.autoKey(), apos: this.autoPos(), alen: this.autoLen(), rec: Object.keys(this.touch) });
+        if (this.autoDirty.size || this.autoMeta) { // recorded automation goes back to the editor, which keeps the song
+          const key = this.autoKey(), tab = this.autoTable(false) || {}, paths = {};
+          for (const p of this.autoDirty) paths[p] = tab[p] && tab[p].length ? tab[p].map((q) => q.slice()) : null;
+          this.post({ t: 'auto', key, paths, autoBars: this.song.autoBars, autoBase: this.song.autoBase ? Object.assign({}, this.song.autoBase) : undefined });
+          this.autoDirty.clear(); this.autoMeta = false;
+        }
       }
     }
   }
 
   // internals exposed for the test suite
-  const _ = { patHasContent, velGain, euclidRow, miniValueAt, miniVel, euclidBits, normCond, parseRule, queryMini, degreeNote, miniNote, compileAlgo, algoInit, algoStep, algoView, keepAlgoState, arpSeq, ARP_RATES, ARP_ORDERS, ALGO_KNOBS, CA_RULES, MINI_DRUMS, normEuclid, normTuring, normCart, normCells, normMini, mix32, parseScala, normTuning, tuningTable, normScale, fsin, P, O, SYNCB, blep, inp, envTick, svf, lfoWave, rnd, xf, readI, biq, bqRun, optName, takeParams, parseWire, normSet, weighted, parseSig, parseDiv, GEN_KEYS, normMatrix, slug, normBus, compileGraph, sharedParams, instGraph, makeVoice, Track, mapVal, mkRng, pickW, genStep, genBar, compileFor, normControls, nodeParam, SUB_DEPTH, whiteIdx, progIndex };
+  const _ = { normAutoTable, autoAt, wipeAuto, putAuto, simplifyAuto, songLoopBars, patHasContent, velGain, euclidRow, miniValueAt, miniVel, euclidBits, normCond, parseRule, queryMini, degreeNote, miniNote, compileAlgo, algoInit, algoStep, algoView, keepAlgoState, arpSeq, ARP_RATES, ARP_ORDERS, ALGO_KNOBS, CA_RULES, MINI_DRUMS, normEuclid, normTuring, normCart, normCells, normMini, mix32, parseScala, normTuning, tuningTable, normScale, fsin, P, O, SYNCB, blep, inp, envTick, svf, lfoWave, rnd, xf, readI, biq, bqRun, optName, takeParams, parseWire, normSet, weighted, parseSig, parseDiv, GEN_KEYS, normMatrix, slug, normBus, compileGraph, sharedParams, instGraph, makeVoice, Track, mapVal, mkRng, pickW, genStep, genBar, compileFor, normControls, nodeParam, SUB_DEPTH, whiteIdx, progIndex };
   return { Engine, MODS, FX, SYNC, DIVS, normGen, genToJSON, normSong, noteNum, noteName, parseSteps, convParam, PALETTE, defaults, normGraph, normFx, normPattern, normTrack, normPatches, nodeInfo, flatGraph, pname, parseChord, parseProg, voiceChord, CHORD_Q, normChords, normProgression, parseMini, algoOf, ALGOS, _ };
 }
 
@@ -4354,6 +4581,7 @@ const RigLib = (() => {
   // ------------------------------------------------------------ Clockwork Garden: every algorithmic sequencer at once
   PRESETS.push({
     title: 'Clockwork Garden — Euclid, Turing, Life, a grid walk and pattern language',
+    autoBase: { 'arp/mix/pan': 0, 'hats/mix/mute': false }, // what the automated controls play outside "Overgrown"
     bpm: 112, swing: 0.06,
     scale: { root: 'A', name: 'minor' },
     progression: { prog: 'i bVI bIII bVII', len: 4 },
@@ -4386,7 +4614,9 @@ const RigLib = (() => {
     scenes: [
       { name: 'Seeds', bars: 8, play: { kick: 0, hats: 0, bass: 0, rim: 0 } },
       { name: 'Garden', bars: 16, play: { kick: 0, snare: 0, hats: 0, rim: 0, bass: 0, arp: 0, bells: 0 } },
-      { name: 'Overgrown', bars: 16, play: { kick: 1, snare: 0, hats: 0, rim: 0, bass: 0, arp: 0, bells: 0, lead: 0 }, ramp: { 'bass/pat/0/change': [0, 0.35] } },
+      { name: 'Overgrown', bars: 16, play: { kick: 1, snare: 0, hats: 0, rim: 0, bass: 0, arp: 0, bells: 0, lead: 0 }, ramp: { 'bass/pat/0/change': [0, 0.35] },
+        // automation (like a ● Rec take): the arp swings across the stereo field, the hats drop out for a bar before the turnaround
+        auto: { 'arp/mix/pan': [[0, -0.6], [16, 0.6], [32, -0.6], [48, 0.6], [63.999, -0.6]], 'hats/mix/mute': [[0, false], [56, true], [60, false]] } },
     ],
   });
 
@@ -4396,7 +4626,7 @@ const RigLib = (() => {
 })();
 
 </script>
-<script>const RIG_VERSION = '2026-11-22 10:54';</script>
+<script>const RIG_VERSION = '2026-11-23 12:07';</script>
 <script>/* ============================================================================================
  * RIG: GUIDE FOR AI AGENTS (how to hand a user a link that opens your composition)
  * ============================================================================================
@@ -4441,6 +4671,9 @@ const RigLib = (() => {
  *  - Reusable sub-patches: define them once in "patches" (inlet/outlet modules are the sockets,
  *    "controls" are the knobs on the box) and use them as {"type":"sub","patch":"name",...}.
  *    Built-ins usable by name with no definition: fmop, amp, filterenv, echo, stage.
+ *  - Movement over time: a scene's "auto": {"bass/fx/0/cut": [[0, 300], [12, 2400]]} draws curves in
+ *    beats from the scene start ("set"/"ramp" for one-shot changes); without scenes use song "auto" +
+ *    "autoBars". "autoBase" holds the values outside automation. "track/play" automates pattern launches.
  *  - Patterns: "x...x..." for drums, "C3 - . E3+G3! . ." for notes, {gen:{...}} for stochastic,
  *    mode "markov" with a matrix for Markov chains, {s,n,v,l,set,c} notes for step locks and trig
  *    conditions ("1:4", "fill", "!pre"...). Machines: {euclid:"C1 5/16+2, D1 3/8"}, {turing:{bits,change,
@@ -4491,7 +4724,15 @@ function undo() {
 }
 
 // ------------------------------------------------------------------ audio
-function send(m) { if (S.send) S.send(m); }
+// every message to the engine goes through here. With Rec armed and playing, parameter moves ('p') are recorded as
+// automation (rec: true); messages marked norec (tempo from MIDI clock, menu actions) never are.
+function send(m) {
+  if (m.t === 'p' && !m.norec && !m.rec && S.song) {
+    if (S.rec && S.playing) { m = Object.assign({}, m, { rec: true, at: recClock() }); recTouch(); }
+    else if (S.song.autoBase && m.path in S.song.autoBase) S.song.autoBase[m.path] = m.v; // not recording: an automated control keeps this value outside its automation
+  }
+  if (S.send) S.send(m);
+}
 let audioStarting = null;
 // iPhone: Web Audio is muted by the ring/silent switch unless an HTML media element is playing.
 // Playing a looping silent clip moves the page into the "playback" audio category.
@@ -4590,7 +4831,7 @@ async function play(scene) {
     else if (!S.st) toast('The audio engine is not responding. Open Menu › Sound check.');
   }, 1500);
 }
-function stop() { send({ t: 'stop' }); S.playing = false; drawPlay(); clockStop(); try { if (S.keep && !S.keep.paused) S.keep.pause(); } catch (e) {} }
+function stop() { send({ t: 'stop' }); S.playing = false; autoStopped(); drawPlay(); clockStop(); try { if (S.keep && !S.keep.paused) S.keep.pause(); } catch (e) {} }
 // any tap resumes a suspended or interrupted context (iOS calls, other apps, screen lock)
 document.addEventListener('pointerdown', () => { if (S.ctx && S.ctx.state !== 'running') { unlockMedia(); S.ctx.resume().catch(() => {}); } }, true);
 function soundCheck() {
@@ -4635,8 +4876,10 @@ window.addEventListener('unhandledrejection', (e) => reportError('page (async)',
 function onEngine(m) {
   if (m.t === 'err') { reportError(m.where, m.msg); return; }
   if (m.t === 'mo' || m.t === 'mcc') { midiOutEvent(m); return; }
+  if (m.t === 'auto') { mergeAuto(m); return; }
   if (m.t !== 'st') return;
   S.st = m;
+  showAuto(m.av);
   const lv = S.live;
   if (lv.meters) for (const id in lv.meters) {
     const el = lv.meters[id]; if (!el.isConnected) continue;
@@ -4758,21 +5001,25 @@ function control(label, sp, get, set, opts = {}) {
       cur && !S.samples[cur] ? h('option', { value: cur }, cur + ' (missing)') : null,
       h('option', { value: '+load' }, 'Load audio file…'));
     s.value = cur;
-    return h('div', { class: 'sel wide' }, s, h('label', null, label));
+    const w = h('div', { class: 'sel wide' }, s, h('label', null, label));
+    w._show = (v) => { const x = v !== undefined ? String(v) : get(); if (s.value !== x && document.activeElement !== s) s.value = x; };
+    return w;
   }
   if (sp.options || sp.type === 'track') {
     const options = sp.options || ['', ...tracks().map((t) => t.id)];
     const s = h('select', { 'aria-label': label, onchange: () => set(s.value) }, options.map((o) => h('option', { value: o }, o || '—')));
     s.value = get();
-    return h('div', { class: 'sel' }, s, h('label', null, label));
+    const w = h('div', { class: 'sel' }, s, h('label', null, label));
+    w._show = (v) => { const x = v !== undefined ? String(v) : get(); if (s.value !== x && document.activeElement !== s) s.value = x; };
+    return w;
   }
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 40 40');
   svg.innerHTML = `<path d="${arcPath(1, 15)}" stroke="var(--bg)" stroke-width="3.5" fill="none"/><path class="arc" stroke="var(--accent)" stroke-width="3.5" fill="none"/><circle cx="20" cy="20" r="9.5" fill="var(--panel2)" stroke="var(--line)"/><line class="ptr" x1="20" y1="20" stroke="var(--text)" stroke-width="2"/>`;
   const vEl = h('span', { class: 'v' });
   const el = h('div', { class: 'knob' + (opts.small ? ' sm' : ''), tabindex: 0, role: 'slider', 'aria-label': label, title: label + ' (drag up/down, double-tap to reset)' }, svg, vEl, opts.small ? null : h('label', null, label));
-  const draw = () => {
-    const v = get(), n = clamp(toN(sp, v), 0, 1);
+  const draw = (vo) => {
+    const v = vo !== undefined ? vo : get(), n = clamp(toN(sp, v), 0, 1);
     svg.querySelector('.arc').setAttribute('d', n > 0.002 ? arcPath(n, 15) : '');
     const a = Math.PI * 0.75 + Math.PI * 1.5 * n;
     const l = svg.querySelector('.ptr'); l.setAttribute('x2', (20 + 8 * Math.cos(a)).toFixed(2)); l.setAttribute('y2', (20 + 8 * Math.sin(a)).toFixed(2));
@@ -4780,11 +5027,11 @@ function control(label, sp, get, set, opts = {}) {
     el.setAttribute('aria-valuetext', fmt(sp, v));
   };
   const apply = (v) => { set(v); draw(); };
-  el._draw = draw;
+  el._draw = () => draw(); el._show = (v) => draw(v); // _show: the value automation is playing (undefined = the song's own)
   let sy, sx, sn, moved, lastTap = 0;
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('drag');
-    sy = e.clientY; sx = e.clientX; sn = toN(sp, get()); moved = false;
+    sy = e.clientY; sx = e.clientX; sn = toN(sp, el._av !== undefined ? el._av : get()); moved = false;
   });
   el.addEventListener('pointermove', (e) => {
     if (!el.hasPointerCapture(e.pointerId)) return;
@@ -4943,6 +5190,8 @@ function paramRef(t, rel) {
     return { sp: { min: kn[0], max: kn[1], def: kn[2], curve: kn[3], step: kn[4] ? 1 : undefined }, get: () => sp0[a[2]], set: (v) => { sp0[a[2]] = clamp(kn[4] ? Math.round(v) : v, kn[0], kn[1]); } };
   }
   if (a[0] === 'send') { const sp = { min: 0, max: 1, def: 0, curve: 'lin' }; return { sp, get: () => t.sends[a[1]] || 0, set: (v) => { t.sends[a[1]] = v; } }; }
+  if (a[0] === 'mix' && a[1] === 'solo') { const sp = { min: 0, max: 1, def: 0, curve: 'lin', step: 1 }; return { sp, get: () => (t.solo ? 1 : 0), set: (v) => { t.solo = v === true || v >= 0.5; } }; }
+  if (a[0] === 'play') { const sp = { min: -1, max: 63, def: -1, curve: 'lin', step: 1, hold: true }; return { sp, get: () => (S.forced[t.id] >= 0 ? S.forced[t.id] : -1), set: (v) => { if (v >= 0 && S.song.scenes.length) S.forced[t.id] = v; else delete S.forced[t.id]; } }; } // the pattern launched live
   if (a[0] === 'mix' && a[1] === 'mute') { const sp = { min: 0, max: 1, def: 0, curve: 'lin', step: 1 }; return { sp, get: () => (t.mute ? 1 : 0), set: (v) => { t.mute = v >= 0.5; } }; }
   if (a[0] === 'fx' && a[2] === 'on' && t.fx[+a[1]]) { const f = t.fx[+a[1]], sp = { min: 0, max: 1, def: 1, curve: 'lin', step: 1 }; return { sp, get: () => (f.on ? 1 : 0), set: (v) => { f.on = v >= 0.5; } }; }
   if (a[0] === 'mix') { const sp = a[1] === 'pan' ? { min: -1, max: 1, def: 0, curve: 'lin' } : { min: -70, max: 12, def: -6, curve: 'lin', unit: 'dB' }; return { sp, get: () => t[a[1]], set: (v) => { t[a[1]] = v; } }; }
@@ -4963,6 +5212,10 @@ S.forced = {};
 function sendForces() { for (const id in S.forced) send({ t: 'force', id, pat: S.forced[id] }); }
 async function playPattern(t, pi) {
   await ensureAudio();
+  if (S.rec && S.playing) { // recording: the launch is written as automation of <track>/play
+    if (S.song.scenes.length) S.forced[t.id] = pi;
+    send({ t: 'p', path: t.id + '/play', v: pi }); render(); return;
+  }
   if (!S.song.scenes.length) { // no scenes: the song itself remembers which pattern each track loops (saved, and in share links)
     snap(); if (pi) t.loop = pi; else delete t.loop; delete S.forced[t.id];
     pushTrack(t, 'mix'); send({ t: 'force', id: t.id, pat: -1 });
@@ -4972,6 +5225,138 @@ async function playPattern(t, pi) {
 }
 function backToArrangement(t) { delete S.forced[t.id]; send({ t: 'force', id: t.id, pat: -1 }); render(); }
 function pushScenes() { send({ t: 'scenes', scenes: clone(S.song.scenes) }); save(); }
+
+// ------------------------------------------------------------------ automation (Rec)
+// Rec armed + playing: each 'p' message is recorded by the engine at the playhead into the scene playing (scene.auto) or,
+// without scenes, into song.auto. A take lasts while a finger or the mouse is down (or 400 ms after the last key / MIDI
+// move); the playhead overwrites what it passes during a take. The engine posts {t:'auto'} with the new points, merged here.
+// song.autoBase[path] is what a parameter plays where it is not automated (and after stop); the song's own value follows it.
+S.rec = false;
+const recPtrs = new Set(); let recHeld = false, recT = 0;
+function setRec(on) {
+  S.rec = on; drawRec();
+  if (on) toast(S.playing ? 'Recording: move anything, it is written into ' + autoWhere() : 'Rec armed: press play, then move any knob, fader, switch or pattern');
+  else recRelease();
+}
+function drawRec() { const b = $('#rec'); if (!b) return; b.classList.toggle('on', !!S.rec); b.classList.toggle('live', !!(S.rec && S.playing)); b.setAttribute('aria-pressed', String(!!S.rec)); }
+function autoWhere() { const sc = S.song.scenes, i = S.st ? S.st.ab : 0; return sc.length ? (sc[i] ? 'scene “' + sc[i].name + '”' : 'the scene playing') : 'the song loop'; }
+function recTouch() {
+  if (!recHeld) { recHeld = true; snap(); } // one undo step per take
+  clearTimeout(recT); if (!recPtrs.size) recT = setTimeout(recRelease, 400);
+}
+function recRelease() { clearTimeout(recT); if (!recHeld) return; recHeld = false; send({ t: 'touchend', at: recClock() }); }
+// the audio clock of what is being heard right now (the engine places recorded moves by it)
+function recClock() { const c = S.ctx; if (!c) return undefined; return c.currentTime - Math.min(0.2, c.outputLatency || c.baseLatency || 0); }
+document.addEventListener('pointerdown', (e) => recPtrs.add(e.pointerId), true);
+for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, (e) => { recPtrs.delete(e.pointerId); if (!recPtrs.size) recRelease(); }, true);
+window.addEventListener('blur', () => { recPtrs.clear(); recRelease(); });
+function autoTables(s = S.song) { return s.scenes.length ? s.scenes.map((sc, i) => [i, sc]) : [[-1, s]]; }
+function autoPaths(s = S.song) { const o = new Set(); for (const [, x] of autoTables(s)) for (const p in x.auto || {}) o.add(p); return o; }
+function mergeAuto(m) {
+  const s = S.song, own = m.key < 0 ? s : s.scenes[m.key];
+  if (own) {
+    const tab = own.auto || (own.auto = {});
+    for (const p in m.paths) { if (m.paths[p]) tab[p] = m.paths[p]; else delete tab[p]; }
+    if (!Object.keys(tab).length) delete own.auto;
+  }
+  if (m.autoBars) s.autoBars = m.autoBars;
+  if (m.autoBase) s.autoBase = m.autoBase;
+  saveSoon(); markAuto(); if (S.live.autoList) S.live.autoList(); for (const f of S.live.acounts || []) f();
+}
+// controls on screen with a parameter path: show what automation plays, mark the automated ones
+function actls() {
+  const lv = S.live; if (lv.actl) return lv.actl;
+  const m = {}; document.querySelectorAll('[data-path]').forEach((el) => { if (el._show) (m[el.dataset.path] || (m[el.dataset.path] = [])).push(el); });
+  return (lv.actl = m);
+}
+function showAuto(av) {
+  av = (S.playing && av) || {};
+  const m = actls();
+  for (const p in m) for (const el of m[p]) {
+    if (!el.isConnected) continue;
+    const v = av[p];
+    if (v !== undefined) { if (el._av !== v && !el.classList.contains('drag')) { el._av = v; el._show(v); } }
+    else if (el._av !== undefined) { el._av = undefined; el._show(); }
+  }
+}
+function markAuto() { const a = autoPaths(); document.querySelectorAll('[data-path]').forEach((el) => el.classList.toggle('automated', a.has(el.dataset.path))); }
+// after stop the engine plays the un-automated values again; the song shows them too
+function autoStopped() {
+  recRelease();
+  const b = S.song && S.song.autoBase;
+  if (b) for (const p in b) { const r = refAbs(p); if (r) r.set(b[p]); }
+  if (S.live) { showAuto({}); for (const p in actls()) for (const el of actls()[p]) if (el._draw) el._draw(); }
+  if (b && 'bpm' in b) drawBpm();
+}
+function withPath(el, path) { if (el) el.dataset.path = path; return el; }
+function pathLabel(path) {
+  for (const g of allPaths()) for (const it of g.items) if (it.path === path) return it.label;
+  const i = path.indexOf('/'), t = i > 0 && findT(path.slice(0, i)), rel = path.slice(i + 1);
+  if (t) return t.name + ' › ' + ({ play: 'pattern launch', 'mix/solo': 'solo' }[rel] || rel.replace(/\//g, ' › '));
+  return path;
+}
+function autoFmt(path, v) {
+  if (v === undefined || v === null) return '—';
+  if (/\/play$/.test(path)) return v < 0 ? 'the scene’s own pattern' : 'pattern ' + String.fromCharCode(65 + v);
+  if (typeof v === 'boolean' || /\/(mute|solo|on)$/.test(path)) return v === true || v >= 0.5 ? 'on' : 'off';
+  if (typeof v === 'string') return v || '—';
+  const r = refAbs(path); return r && r.sp && !r.sp.options && !r.sp.type ? fmt(r.sp, v) : String(+(+v).toFixed(3));
+}
+// put a parameter at v now, in the song and the engine, without recording it
+function autoApply(path, v) { const r = refAbs(path); if (r) r.set(v); send({ t: 'p', path, v, norec: true }); }
+function autoPushBase() { const s = S.song; if (s.autoBase && !Object.keys(s.autoBase).length) delete s.autoBase; send({ t: 'auto', autoBase: s.autoBase || null }); }
+function clearAuto(path, which) { // which: a scene index, -1 for the song loop, 'all'
+  const s = S.song; snap();
+  for (const [i, own] of autoTables()) if ((which === 'all' || which === i) && own.auto && own.auto[path]) { delete own.auto[path]; if (!Object.keys(own.auto).length) delete own.auto; }
+  if (!autoPaths().has(path) && s.autoBase && path in s.autoBase) { autoApply(path, s.autoBase[path]); delete s.autoBase[path]; }
+  if (s.scenes.length) pushScenes(); else { send({ t: 'auto', auto: s.auto || null }); save(); }
+  autoPushBase(); render();
+}
+function clearAllAuto() {
+  const s = S.song; snap();
+  if (s.autoBase) for (const p in s.autoBase) autoApply(p, s.autoBase[p]);
+  for (const [, own] of autoTables()) delete own.auto;
+  delete s.auto; delete s.autoBase;
+  if (s.scenes.length) pushScenes(); send({ t: 'auto', auto: null, autoBase: null }); save(); render(); toast('Automation cleared', { label: 'Undo', fn: undo });
+}
+function autoMenu(path) {
+  const s = S.song, r = refAbs(path), label = pathLabel(path);
+  const where = autoTables().filter(([, own]) => own.auto && own.auto[path]).map(([i]) => i);
+  const cur = s.scenes.length ? (S.st ? S.st.ab : 0) : -1, inCur = where.includes(cur);
+  const base = s.autoBase && path in s.autoBase ? s.autoBase[path] : r ? r.get() : undefined;
+  const now = S.playing && S.st && S.st.av ? S.st.av[path] : undefined;
+  const def = r && r.sp ? (r.sp.def !== undefined ? r.sp.def : r.sp.options ? r.sp.options[0] : undefined) : undefined;
+  const nm = (i) => (i < 0 ? 'the song loop' : '“' + s.scenes[i].name + '”');
+  dialog(label, (close) => {
+    const act = (txt, fn, cls) => h('button', { class: 'amenu-b' + (cls ? ' ' + cls : ''), onclick: () => { close(); fn(); } }, txt);
+    return h('div', { class: 'amenu' },
+      h('p', { class: 'hint' }, where.length ? 'Automated in ' + where.map(nm).join(', ') + '.' : 'Not automated. Arm ● Rec, play, and move it to record a take.'),
+      where.length ? h('p', { class: 'hint' }, 'Where it is not automated, and after stop, it plays ' + autoFmt(path, base) + '.') : null,
+      inCur && s.scenes.length ? act('Clear automation in ' + nm(cur), () => clearAuto(path, cur)) : null,
+      where.length && (!s.scenes.length || where.length > 1 || !inCur) ? act(s.scenes.length ? 'Clear automation in all scenes' : 'Clear automation', () => clearAuto(path, 'all')) : null,
+      where.length && now !== undefined && now !== base ? act('Play ' + autoFmt(path, now) + ' where it is not automated (the value playing now)', () => { snap(); s.autoBase[path] = now; autoPushBase(); save(); }) : null,
+      def !== undefined && /\/play$/.test(path) === false ? act('Reset to default (' + autoFmt(path, def) + ')', () => {
+        snap(); autoApply(path, def);
+        if (s.autoBase && path in s.autoBase) { s.autoBase[path] = def; autoPushBase(); }
+        save(); render();
+      }) : null);
+  });
+}
+// right-click, or a long press on touch screens (not while recording: holding still there is part of a take)
+document.addEventListener('contextmenu', (e) => {
+  const el = e.target.closest && e.target.closest('[data-path]'); if (!el || !refAbs(el.dataset.path)) return;
+  e.preventDefault(); if (Date.now() - lpAt < 900 || document.querySelector('.scrim')) return; autoMenu(el.dataset.path);
+});
+let lpT = 0, lpAt = 0, lpXY = null;
+document.addEventListener('pointerdown', (e) => {
+  clearTimeout(lpT); if (e.pointerType === 'mouse' || (S.rec && S.playing)) return;
+  const el = e.target.closest && e.target.closest('[data-path]'); if (!el || M.learn) return;
+  lpXY = [e.clientX, e.clientY];
+  lpT = setTimeout(() => { if (!el.isConnected || !refAbs(el.dataset.path)) return; lpAt = Date.now(); el.classList.remove('drag'); autoMenu(el.dataset.path); }, 550);
+}, true);
+document.addEventListener('pointermove', (e) => { if (lpXY && Math.hypot(e.clientX - lpXY[0], e.clientY - lpXY[1]) > 8) { clearTimeout(lpT); lpXY = null; } }, true);
+for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, () => { clearTimeout(lpT); lpXY = null; }, true);
+document.addEventListener('click', (e) => { if (Date.now() - lpAt < 900) { lpAt = 0; e.preventDefault(); e.stopPropagation(); } }, true); // the long press opened the menu: the click of lifting the finger neither toggles the control nor closes the menu
 
 // ------------------------------------------------------------------ load
 // expand "sound": "<template>" shortcuts and give tracks without a patch a default sound
@@ -5105,7 +5490,7 @@ function sampleModuleView(t, prefix, name, n) {
   const holder = h('div', { style: { margin: '2px 0 6px' } }, wv);
   const redraw = () => { const nw = wave(n.p.sample, 260, 56, samplerOverlay(n.p, n.type)); holder.replaceChild(nw, wv); wv = nw; };
   return h('div', null, holder, h('div', { class: 'knobs' }, Object.keys(D.params).map((k) => {
-    if (k === 'sample') return control('sample', D.params.sample, () => n.p.sample, (v) => { n.p.sample = v; send({ t: 'p', path: t.id + '/' + prefix + name + '/sample', v }); save(); redraw(); });
+    if (k === 'sample') return withPath(control('sample', D.params.sample, () => n.p.sample, (v) => { n.p.sample = v; send({ t: 'p', path: t.id + '/' + prefix + name + '/sample', v }); save(); redraw(); }), t.id + '/' + prefix + name + '/sample');
     return pctl(t, prefix + name + '/' + k, k, { after: redraw });
   })));
 }
@@ -5401,7 +5786,7 @@ function clockPhase(st) {
   const want = M.inTicks / 24, err = want - st.gb; // beats ahead (+) or behind (-)
   const nudge = clamp(err * 0.08, -0.03, 0.03);
   const bpm = +(M.clockBpm * (1 + nudge)).toFixed(3);
-  if (Math.abs(bpm - (st.bpm || 0)) > 0.01) { send({ t: 'p', path: 'bpm', v: bpm }); S.song.bpm = Math.round(M.clockBpm * 10) / 10; drawBpm(); }
+  if (Math.abs(bpm - (st.bpm || 0)) > 0.01) { send({ t: 'p', path: 'bpm', v: bpm, norec: true }); S.song.bpm = Math.round(M.clockBpm * 10) / 10; drawBpm(); }
 }
 document.addEventListener('pointerdown', (e) => {
   if (!M.learn) return;
@@ -5471,7 +5856,7 @@ function md(src) {
 
 // ------------------------------------------------------------------ top bar
 const ICON_PLAY = '<svg viewBox="0 0 20 20"><path d="M5 3l12 7-12 7z"/></svg>', ICON_STOP = '<svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="1"/></svg>';
-function drawPlay() { const b = $('#play'); b.innerHTML = S.playing ? ICON_STOP : ICON_PLAY; b.classList.toggle('on', S.playing); b.setAttribute('aria-label', S.playing ? 'Stop' : 'Play'); }
+function drawPlay() { const b = $('#play'); b.innerHTML = S.playing ? ICON_STOP : ICON_PLAY; b.classList.toggle('on', S.playing); b.setAttribute('aria-label', S.playing ? 'Stop' : 'Play'); drawRec(); }
 function buildTop() {
   const bpm = h('div', { class: 'bpm', title: 'Tempo: drag up/down, double-tap to type', tabindex: 0, role: 'slider', 'aria-label': 'Tempo' }, h('b', { id: 'bpmv' }), h('small', null, 'bpm'));
   let sy, sb, last = 0;
@@ -5499,8 +5884,10 @@ function buildTop() {
   for (const evn of ['pointerup', 'pointercancel', 'lostpointercapture']) fill.addEventListener(evn, () => setFill(false));
   fill.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setFill(true); } });
   fill.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') setFill(false); });
+  bpm.dataset.path = 'bpm'; bpm._show = (v) => { $('#bpmv').textContent = v !== undefined ? Math.round(v) : S.song.bpm; };
+  const rec = h('button', { id: 'rec', title: 'Record automation: while playing, every knob, fader, switch and pattern launch you move is written into the scene that is playing, and plays back each time round', 'aria-label': 'Record automation', 'aria-pressed': 'false', onclick: () => setRec(!S.rec) }, h('i'));
   const bar = h('div', { id: 'bar' },
-    h('button', { id: 'play', onclick: () => (S.playing ? stop() : play()) }),
+    h('button', { id: 'play', onclick: () => (S.playing ? stop() : play()) }), rec,
     h('div', { id: 'title' }), bpm, mode, fill,
     h('button', { id: 'look', title: 'Switch between the dark and light interface', onclick: () => setLook(S.look === 'light' ? 'dark' : 'light') }),
     h('button', { onclick: openMenu, 'aria-label': 'Menu' }, 'Menu'));
@@ -5569,6 +5956,7 @@ function render(opts) {
   if (v.v === 'song') renderSong(m);
   else if (v.v === 'track') renderTrack(m, findT(v.id));
   else if (v.v === 'graph') renderGraph(m, findT(v.id), v.fx);
+  markAuto(); if (S.st) showAuto(S.st.av);
   if (!keep) { m.style.minHeight = ''; return; }
   // the same sideways scroll for the mixer, piano roll, grids…
   for (const k in side) { const [cls, tag] = k.split('|'); const els = [...m.querySelectorAll(tag)].filter((el) => el.className === cls); for (const [sl, st, i] of side[k]) { const el = els[i]; if (el) { el.scrollLeft = sl; el.scrollTop = st; } } }
@@ -5689,15 +6077,16 @@ function strip(t, bus) {
   if (group) el.append(h('div', { class: 'pat grouptag' }, 'Bus' + (() => { const n = S.song.tracks.filter((x) => x.out === t.id).length; return n ? ' · ' + n + ' in' : ''; })()));
   else if (!bus) el.append(h('div', { class: 'pat', 'data-pat': t.id }));
   if (!bus) for (const r of S.song.returns) el.append(h('div', { class: 'row', style: { gap: '2px' } }, pctl(t, 'send/' + r.id, 'Send ' + r.name, { small: true }), h('span', { class: 'lbl' }, r.id)));
-  el.append(control('Pan', { min: -1, max: 1, def: 0, curve: 'lin' }, () => t.pan, (v) => { t.pan = v; send({ t: 'p', path: t.id + '/mix/pan', v }); save(); }, { small: true }));
+  el.append(withPath(control('Pan', { min: -1, max: 1, def: 0, curve: 'lin' }, () => t.pan, (v) => { t.pan = v; send({ t: 'p', path: t.id + '/mix/pan', v }); save(); }, { small: true }), t.id + '/mix/pan'));
   const fader = h('div', { class: 'fader', tabindex: 0, role: 'slider', 'aria-label': t.name + ' volume' }, h('div', { class: 'zero', style: { top: (1 - faderPos(0)) * 100 + '%' } }), h('div', { class: 'cap' }));
   const meter = h('div', { class: 'meter' }, h('i'));
   S.live.meters[t.id] = meter.firstChild;
   const db = h('div', { class: 'db' });
-  const draw = () => { fader.querySelector('.cap').style.top = (1 - faderPos(t.vol)) * 100 + '%'; db.textContent = t.vol <= -70 ? '-∞' : (t.vol > 0 ? '+' : '') + t.vol.toFixed(1); };
+  const draw = (vo) => { const v = vo !== undefined ? +vo : t.vol; fader.querySelector('.cap').style.top = (1 - faderPos(v)) * 100 + '%'; db.textContent = v <= -70 ? '-∞' : (v > 0 ? '+' : '') + v.toFixed(1); };
+  fader.dataset.path = t.id + '/mix/vol'; fader._show = draw;
   const setDb = (v) => { t.vol = +v.toFixed(1); draw(); send({ t: 'p', path: t.id + '/mix/vol', v: t.vol }); save(); };
   let sy, sf, lastTap = 0;
-  fader.addEventListener('pointerdown', (e) => { fader.setPointerCapture(e.pointerId); sy = e.clientY; sf = faderPos(t.vol); });
+  fader.addEventListener('pointerdown', (e) => { fader.setPointerCapture(e.pointerId); sy = e.clientY; sf = faderPos(fader._av !== undefined ? +fader._av : t.vol); });
   fader.addEventListener('pointermove', (e) => { if (fader.hasPointerCapture(e.pointerId)) setDb(faderDb(clamp(sf + (sy - e.clientY) / fader.clientHeight, 0, 1))); });
   fader.addEventListener('pointerup', (e) => { const n = Date.now(); if (n - lastTap < 320 && Math.abs(e.clientY - sy) < 3) setDb(bus ? 0 : -6); lastTap = n; });
   fader.addEventListener('keydown', (e) => { const k = { ArrowUp: 1, ArrowDown: -1 }[e.key]; if (k) { e.preventDefault(); setDb(clamp(t.vol + k, -70, 6)); } });
@@ -5705,6 +6094,8 @@ function strip(t, bus) {
   if (!bus) {
     const mb = h('button', { class: 'm' + (t.mute ? ' on' : ''), 'aria-label': 'Mute ' + t.name, onclick: () => { t.mute = !t.mute; mb.classList.toggle('on', t.mute); send({ t: 'p', path: t.id + '/mix/mute', v: t.mute }); dimStrips(); save(); } }, 'M');
     const sb = h('button', { class: 's' + (t.solo ? ' on' : ''), 'aria-label': 'Solo ' + t.name, onclick: () => { t.solo = !t.solo; sb.classList.toggle('on', t.solo); send({ t: 'p', path: t.id + '/mix/solo', v: t.solo }); dimStrips(); save(); } }, 'S');
+    mb.dataset.path = t.id + '/mix/mute'; mb._show = (v) => mb.classList.toggle('on', v !== undefined ? !!v : t.mute);
+    sb.dataset.path = t.id + '/mix/solo'; sb._show = (v) => sb.classList.toggle('on', v !== undefined ? !!v : t.solo);
     el.append(h('div', { class: 'ms' }, mb, sb));
     el.dataset.tid = t.id;
   }
@@ -5723,6 +6114,38 @@ function dimStrips() {
   const any = tracks().some((t) => t.solo), keep = any ? soloSet() : null;
   document.querySelectorAll('.strip[data-tid]').forEach((el) => { const t = findT(el.dataset.tid); if (t) el.classList.toggle('dimmed', t.mute || (any && !keep.has(t))); });
 }
+// the recorded automation, per scene (or for the song loop), each lane with a way to clear it
+function autoPanel() {
+  const s = S.song, box = h('div', { class: 'autop' });
+  const draw = () => {
+    box.innerHTML = '';
+    const rows = autoTables().filter(([, own]) => own.auto && Object.keys(own.auto).length);
+    const head = h('div', { class: 'row autop-h' }, h('h3', null, 'Automation'),
+      !s.scenes.length ? h('label', { class: 'hint' }, 'Loop ', h('select', { 'aria-label': 'Automation loop length', onchange: (e) => { snap(); s.autoBars = +e.target.value; send({ t: 'auto', autoBars: s.autoBars }); save(); } },
+        [1, 2, 4, 8, 16, 32].map((b) => h('option', { value: b, selected: (s.autoBars || 0) === b ? '' : null }, b + (b > 1 ? ' bars' : ' bar')))), s.autoBars ? null : ' (set by the first take)') : null,
+      rows.length ? h('button', { class: 'small ghost', onclick: clearAllAuto }, 'Clear all') : null);
+    box.append(head);
+    if (!rows.length) { box.append(h('p', { class: 'hint' }, 'Nothing recorded yet. Arm ● Rec next to Play, start playback and move any knob, fader, switch or pattern: the moves are written into the scene playing and repeat each time round. Right-click (or long-press) a control for its automation options.')); return; }
+    for (const [i, own] of rows) {
+      const len = (i < 0 ? s.autoBars || 4 : own.bars) * 4;
+      box.append(h('div', { class: 'autop-s' }, h('b', null, i < 0 ? 'Song loop' : own.name),
+        Object.keys(own.auto).sort().map((p) => h('span', { class: 'achip' },
+          h('button', { class: 'small ghost', title: 'Automation options', onclick: () => autoMenu(p) }, autoSpark(own.auto[p], len), pathLabel(p)),
+          h('button', { class: 'small ghost', 'aria-label': 'Clear automation of ' + pathLabel(p) + (i < 0 ? '' : ' in ' + own.name), onclick: () => clearAuto(p, i) }, '✕')))));
+    }
+  };
+  draw(); S.live.autoList = draw;
+  return box;
+}
+// a tiny picture of a lane
+function autoSpark(pts, len) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 40 14'); svg.setAttribute('class', 'aspark'); svg.setAttribute('aria-hidden', 'true');
+  const nums = pts.filter((q) => typeof q[1] === 'number').map((q) => q[1]), lo = Math.min(...nums), hi = Math.max(...nums);
+  const y = (v) => (typeof v === 'number' ? (hi > lo ? 12 - ((v - lo) / (hi - lo)) * 10 : 7) : v === true ? 2 : v === false ? 12 : 7);
+  const d = pts.map((q, k) => (k ? 'L' : 'M') + ((q[0] / len) * 40).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ') + ' L40 ' + y(pts[pts.length - 1][1]).toFixed(1);
+  svg.innerHTML = '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="1.4"/>';
+  return svg;
+}
 function arrangement() {
   const s = S.song;
   const wrap = h('section');
@@ -5732,13 +6155,16 @@ function arrangement() {
   wrap.append(head);
   if (!s.scenes.length) {
     wrap.append(h('div', { class: 'empty' }, 'No scenes: every track loops its first pattern forever. Add a scene to arrange intro, build, drop and so on.'));
+    wrap.append(autoPanel());
     return wrap;
   }
   const tbl = h('table', { class: 'arr' });
   tbl.append(h('tr', null, h('th', null, 'Scene'), h('th', null, 'Bars'), arrTracks.map((t) => h('th', { class: 'tr', style: { 'border-left-color': t.color } }, t.name)), h('th')));
   s.scenes.forEach((sc, i) => {
     const row = h('tr', { class: S.st && S.st.scene === i ? 'cur' : '' });
-    row.append(h('td', { class: 'sname' }, h('input', { type: 'text', value: sc.name, 'aria-label': 'Scene name', onchange: (e) => { sc.name = e.target.value; pushScenes(); render(); } })));
+    const cnt = h('span', { class: 'acount' }), drawCnt = () => { const na = sc.auto ? Object.keys(sc.auto).length : 0; cnt.hidden = !na; cnt.textContent = na; cnt.title = na + ' automated parameter' + (na === 1 ? '' : 's'); };
+    drawCnt(); (S.live.acounts || (S.live.acounts = [])).push(drawCnt);
+    row.append(h('td', { class: 'sname' }, h('input', { type: 'text', value: sc.name, 'aria-label': 'Scene name', onchange: (e) => { sc.name = e.target.value; pushScenes(); render(); } }), cnt));
     row.append(h('td', { class: 'sbars' }, h('input', { type: 'number', min: 1, max: 256, value: sc.bars, 'aria-label': 'Bars', onchange: (e) => { sc.bars = clamp(+e.target.value || 4, 0.25, 256); pushScenes(); render(); } })));
     for (const t of arrTracks) {
       const cur = sc.play[t.id];
@@ -5752,11 +6178,11 @@ function arrangement() {
       row.append(h('td', null, b));
     }
     row.append(h('td', { style: { 'white-space': 'nowrap', padding: '0 6px' } },
-      h('button', { class: 'small ghost', title: 'Duplicate scene', 'aria-label': 'Duplicate scene', onclick: () => { snap(); s.scenes.splice(i + 1, 0, Object.assign(clone(sc), { name: sc.name + ' 2' })); pushScenes(); render(); } }, '⧉'),
+      h('button', { class: 'small ghost', title: 'Duplicate scene (with its automation)', 'aria-label': 'Duplicate scene', onclick: () => { snap(); s.scenes.splice(i + 1, 0, Object.assign(clone(sc), { name: sc.name + ' 2' })); pushScenes(); render(); } }, '⧉'),
       h('button', { class: 'small ghost', title: 'Delete scene', 'aria-label': 'Delete scene', onclick: () => { snap(); s.scenes.splice(i, 1); pushScenes(); render(); toast('Scene deleted', { label: 'Undo', fn: undo }); } }, '✕')));
     tbl.append(row);
   });
-  wrap.append(h('div', { class: 'grid-wrap' }, tbl), h('p', { class: 'hint' }, 'Each cell is the pattern a track plays in that scene (· = silent). Scene automation (set/ramp) from the song JSON still applies.'));
+  wrap.append(h('div', { class: 'grid-wrap' }, tbl), h('p', { class: 'hint' }, 'Each cell is the pattern a track plays in that scene (· = silent). Duplicating a scene copies its automation too.'), autoPanel());
   return wrap;
 }
 // ---- your own instruments and effects, kept in this browser and usable in any song
@@ -7356,6 +7782,7 @@ function renderFx(m, t) {
   t.fx.forEach((f, i) => {
     const D = R.FX[f.type];
     const onB = h('button', { class: 'small' + (f.on ? ' on' : ''), 'aria-label': (f.on ? 'Bypass ' : 'Enable ') + f.type, onclick: () => { f.on = !f.on; onB.classList.toggle('on', f.on); onB.textContent = f.on ? 'On' : 'Off'; card.classList.toggle('off', !f.on); send({ t: 'p', path: `${t.id}/fx/${i}/on`, v: f.on }); save(); } }, f.on ? 'On' : 'Off');
+    onB.dataset.path = `${t.id}/fx/${i}/on`; onB._show = (v) => { const on = v !== undefined ? !!v : f.on; onB.classList.toggle('on', on); onB.textContent = on ? 'On' : 'Off'; };
     const mv = (d) => { snap(); const j = i + d; if (j < 0 || j >= t.fx.length) return; [t.fx[i], t.fx[j]] = [t.fx[j], t.fx[i]]; pushTrack(t, 'fx'); render(); };
     const card = h('div', { class: 'mod fxc' + (f.on ? '' : ' off') },
       h('div', { class: 'mod-h' }, onB, h('b', { style: { flex: 1 } }, f.label || f.type),
@@ -7880,7 +8307,7 @@ function songDialog() {
   const preset = h('select', null, Object.keys(THEMES).map((k) => h('option', { value: k }, k))); preset.value = th.preset || 'dark';
   const accent = h('input', { type: 'color', value: th.accent || THEMES[preset.value].accent });
   const font = h('input', { type: 'text', value: th.font || '', placeholder: 'Archivo', style: { width: '160px' } });
-  const swing = control('Swing', { min: 0, max: 0.5, def: 0, curve: 'lin' }, () => s.swing, (v) => { s.swing = v; send({ t: 'p', path: 'swing', v }); save(); });
+  const swing = withPath(control('Swing', { min: 0, max: 0.5, def: 0, curve: 'lin' }, () => s.swing, (v) => { s.swing = v; send({ t: 'p', path: 'swing', v }); save(); }), 'swing');
   dialog('Song', (close) => h('div', null,
     h('label', { class: 'lbl' }, 'Title'), title,
     h('div', { class: 'row', style: { margin: '8px 0' } }, swing),
@@ -7949,7 +8376,7 @@ async function boot() {
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); }
   });
   window.addEventListener('hashchange', async () => { if (location.hash.length < 3) return; try { const r = await decodeHash(location.hash); if (r) loadSong(r); } catch (e) { toast('The link’s song could not be read.'); } });
-  window.rig = { S, loadSong, play, stop, R, _: { toN, fromN, fmt, arcPath, md, esc, inline, faderPos, faderDb, silentWav, b32encode, b32decode, deflate, inflate, encodeHash, decodeHash, pageBase, allPaths, refAbs, paramRef, lockKey, lockAbs, uniqueName, peaks, expandSounds, blankSong, startMode, addReturn, deleteReturn, mine, newTrack, addBusTrack, outOptions, hwMax, restartAudio, progNames, myProgs, defaultGen, makePattern, bakeSteps, toMini, patKind, usesFill, go, sampleNames, applyTheme, setLook, THEMES, GEN_SPECS, M, onMidi, keysTrack, mapsFor: () => M.maps, usesWorker: () => !!renderWorker, send } };
+  window.rig = { S, loadSong, play, stop, R, _: { setRec, autoMenu, clearAuto, autoPaths, pathLabel, autoTables, toN, fromN, fmt, arcPath, md, esc, inline, faderPos, faderDb, silentWav, b32encode, b32decode, deflate, inflate, encodeHash, decodeHash, pageBase, allPaths, refAbs, paramRef, lockKey, lockAbs, uniqueName, peaks, expandSounds, blankSong, startMode, addReturn, deleteReturn, mine, newTrack, addBusTrack, outOptions, hwMax, restartAudio, progNames, myProgs, defaultGen, makePattern, bakeSteps, toMini, patKind, usesFill, go, sampleNames, applyTheme, setLook, THEMES, GEN_SPECS, M, onMidi, keysTrack, mapsFor: () => M.maps, usesWorker: () => !!renderWorker, send } };
 }
 boot();
 })();
