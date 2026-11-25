@@ -392,6 +392,13 @@ select.kin-add { font-size: 11px; padding: 1px 4px; margin: 4px 0 2px -2px; max-
 .mdlg .mname { flex: 1 1 100%; font-weight: 600; font-size: 13px; }
 .mdlg input.mend { width: 84px; }
 .mdlg .row input[type=text]:not(.mend) { flex: 1; min-width: 0; }
+/* snapshots of a sound or effect */
+.snapbar { gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.snapbar .snapb { min-width: 34px; }
+.snapbar .knob.sm { margin: 0 2px; }
+.snapbar select { max-width: 130px; }
+.snapcell { display: block; margin: 3px auto 0; padding: 1px 5px; font-size: 11px; background: none; border: 1px dashed var(--line); color: var(--dim); border-radius: 6px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snapcell:hover { color: var(--text); border-color: var(--accent); }
 </style><style id="usercss"></style>
 </head><body>
 <header id="top"></header>
@@ -448,6 +455,8 @@ select.kin-add { font-size: 11px; padding: 1px 4px; margin: 4px 0 2px -2px; max-
 <pre>"fx": [{ "type": "graph", "label": "Dirt", "nodes": { "in": {"type": "in"}, "sh": {"type": "shape"}, "f": {"type": "filter"}, "out": {"type": "out"} },
   "wires": ["in -> sh", "sh -> f", "f -> out"],
   "macros": [{ "name": "Grit", "value": 0.3, "to": [{"node": "sh", "param": "drive", "min": 1, "max": 30}, {"node": "f", "param": "cut", "min": 8000, "max": 600}] }] }]</pre>
+<h2>Snapshots</h2>
+<p>A sound (<code>inst</code>) or any effect can keep <code>snaps</code>: named sets of its own knob values to switch or morph between. <code>"snaps": [{"name": "Dark", "v": {"filt/cut": 300, "osc/wave": "saw"}}, {"name": "Bright", "v": {"filt/cut": 6000, "osc/wave": "square"}}], "snap": 0</code>. Keys in <code>v</code> are knob paths relative to the sound or effect: <code>node/param</code> in a patch, a plain knob name on a built-in effect (<code>"mix"</code>, <code>"fb"</code>), <code>"macro/0"</code> for a macro (macros go last, so they win over the knobs they drive); a knob a snapshot leaves out stays where it is (or takes the neighbouring snapshot's value while morphing). <code>snap</code> picks the snapshot the device plays (0 = the first). Its knob path is <code>track/inst/snap</code> or <code>track/fx/1/snap</code>: whole numbers are the snapshots, and in between the knobs morph from one to the next along each knob's curve (a menu flips halfway), so automating it or ramping it in a scene sweeps between sounds. A scene picks one per sound or effect with <code>snaps: {"pad/inst": "Bright", "pad/fx/0": 1}</code> (by name or number); a sound or effect the scene leaves out plays its own <code>snap</code>. In the page: Sound tab and each effect card › + Snapshot; turning a knob changes the snapshot that is playing; the arrangement shows which snapshot each scene plays under the pattern letter.</p>
 <h2>Patterns</h2>
 <p><code>{len, div, steps}</code> or <code>{len, div, notes}</code>. <code>div</code> = steps per beat (4 = 16ths, 2 = 8ths, 3 = 8th triplets, 1 = quarters). Patterns of different lengths drift against each other (polymeter).</p>
 <p><b>steps string</b>: one token per step, separated by spaces: <code>.</code> rest, <code>-</code> tie (extends the previous note), a note <code>C3</code> <code>F#2</code> <code>Bb4</code>, a chord <code>C3+Eb3+G3</code>, <code>x</code> = the track's default note, <code>X</code> accent, <code>o</code> ghost. Suffixes: <code>!</code> accent, <code>~</code> soft, <code>?</code> 50% chance, <code>^</code> slide into this note (mono tracks). Drum shorthand without spaces works too: <code>"x...x..X..x.o.x."</code>. A plain string is accepted as a whole pattern. <code>|</code> is ignored, so you can use it to mark bars.</p>
@@ -464,6 +473,7 @@ select.kin-add { font-size: 11px; padding: 1px 4px; margin: 4px 0 2px -2px; max-
 <tr><td><code>repeat</code>, <code>mutate</code></td><td>chance to replay the previous bar, and the chance each of its steps is re-rolled</td></tr>
 <tr><td><code>vel</code>, <code>len</code></td><td><code>[min, max]</code> velocity and length (in steps)</td></tr>
 <tr><td><code>seed</code></td><td>0 = a new take every play; any other integer replays the same take</td></tr>
+<tr><td><code>flow</code></td><td>Markov mode: <code>"down"</code> (what the page makes) walks the rows top to bottom, one row per step (or per its <code>sdur</code>), then round again; each row picks one of its marked cells by weight and plays that column's state, so a diagonal (row i → column i) plays the states in order, like a scale up or a sliced sample forwards, a row with two marked cells is a choice between two notes, and an empty row or the rest column is a silent step. The rest row is not walked. Every scene start goes back to the top row. <code>"jump"</code> (the default when left out, as in older songs): the chain moves to the row of the column it picked, so it can wander anywhere; <code>sdur</code> then belongs to the state.</td></tr>
 <tr><td><code>matrix</code></td><td>Markov mode: the states are the notes in the pool plus a final <code>rest</code>. Either an array of rows (row = current state, column = next state, weights 0–1) or an object such as <code>{"C2": {"E2": 1, "rest": 0.3}, "E2": {"C2": 1}, "rest": {"C2": 1}}</code>. Up to 32 states; a note may appear more than once (each copy is its own state). Only marked cells (weight above 0) are ever taken; a row with nothing marked goes to <code>rest</code>. With <code>down</code>, a bar that would start on a rest starts on a note the row marks instead (never an unmarked one). A Markov bar is only replayed by <code>repeat</code> when the jump from its end back to its start is a marked cell, and <code>mutate</code> does not apply.</td></tr>
 <tr><td><code>svel</code>, <code>slen</code></td><td>optional per-note (or per-Markov-state) velocity and length, arrays aligned with <code>notes</code>; <code>null</code> = use <code>vel</code>/<code>len</code> dice. Example: <code>"svel": [1, null, 0.4]</code>.</td></tr>
 <tr><td><code>sdur</code></td><td>Markov mode: how many steps each state (row) lasts before the chain moves on, one entry per state with <code>rest</code> last, e.g. <code>[1, 2, 4, 1]</code>. A state longer than 1 step plays its note for the whole time (its own <code>slen</code>, if set, wins; the <code>len</code> dice only apply to 1-step states) and spreads any ratchet roll across it; a longer rest row makes longer silences. A state can run on over the bar line. Default 1.</td></tr>
@@ -512,7 +522,7 @@ select.kin-add { font-size: 11px; padding: 1px 4px; margin: 4px 0 2px -2px; max-
           "wires": ["mod.out -> car.pm", "car.out -> out"] }</pre>
 <p>Every use shares the inside: edit it once and all uses change. Each use keeps its own knob values. Paths reach a box knob as <code>track/inst/mod/ratio</code>, and any inner module as <code>track/inst/mod/osc/fine</code>. This works for lanes, step locks, scenes and MIDI. Built-in sub-patches you can use by name without defining them: <code>fmop</code> (FM operator), <code>amp</code> (Amp envelope), <code>filterenv</code> (Filter + envelope), <code>echo</code> (Filtered echo), <code>stage</code> (Phaser stage pair). The page copies them into the song's library. You can also write a definition inline as <code>"patch": {…}</code>; it moves into the library under its label.</p>
 <h2>Scenes</h2>
-<p><code>{name, bars, play:{trackId: "A"|0|...}, set:{path: value}, ramp:{path: [from, to]}}</code>. Tracks left out of <code>play</code> are silent. <code>set</code> applies when the scene starts; <code>ramp</code> moves a value smoothly across the scene (filter sweeps, delay throws). In Song mode the scenes play in order and loop.</p>
+<p><code>{name, bars, play:{trackId: "A"|0|...}, set:{path: value}, ramp:{path: [from, to]}, snaps:{"track/inst": "B", "track/fx/0": 0}}</code>. Tracks left out of <code>play</code> are silent. <code>set</code> applies when the scene starts; <code>ramp</code> moves a value smoothly across the scene (filter sweeps, delay throws); <code>snaps</code> picks which snapshot (see Snapshots) each sound or effect plays in this scene, the others play their own. In Song mode the scenes play in order and loop.</p>
 <h2>Automation</h2>
 <p>Recorded parameter moves, from the ● Rec button or written by hand. A scene keeps them in <code>auto</code>: <code>{path: [[beat, value], …]}</code>, with beats counted from the start of the scene (0 up to bars × 4) and looping with it. Numbers glide in a straight line from point to point, and from the last point round to the first. Switches (<code>true</code>/<code>false</code>, <code>…/mute</code>, <code>…/on</code>), menu choices (text) and pattern launches jump and hold. A song without scenes keeps them at the top level in <code>auto</code>, looping every <code>autoBars</code> bars (1–64; by default the longest pattern). <code>autoBase: {path: value}</code> is what each automated parameter plays where it is not automated (other scenes, and after stop). Duplicating a scene copies its automation.</p>
 <pre>"scenes": [{ "name": "Build", "bars": 4, "play": { "bass": "A" },
@@ -2111,6 +2121,40 @@ function RigEngine() {
     if (sp.step) v = Math.round(v / sp.step) * sp.step;
     return v;
   }
+  // ---- snapshots: a sound or an effect can keep named sets of its knob values, snaps: [{name, v: {knob: value}}], knob paths
+  // relative to it ("osc/cut", "mix", "macro/0"). Its knob <dev>/snap (0 = the first snapshot, 1 = the second…) picks one;
+  // between two whole numbers the knobs morph from one to the next (along each knob's curve; a menu or switch flips halfway).
+  // snap: where that knob sits (the snapshot it plays unless a scene picks another, see scenes[].snaps).
+  function normSnaps(raw, out) {
+    if (!Array.isArray(raw) || !raw.length) return;
+    const snaps = [], used = {};
+    for (const s0 of raw.slice(0, 16)) {
+      if (!s0 || typeof s0 !== 'object') continue;
+      const base = String(s0.name || String.fromCharCode(65 + snaps.length)).trim().slice(0, 24) || String.fromCharCode(65 + snaps.length);
+      let name = base, i = 2; while (used[name]) name = base + ' ' + i++; used[name] = 1;
+      const v = {}; let n = 0;
+      for (const k in s0.v || s0.values || {}) { const x = (s0.v || s0.values)[k]; if (n >= 600) break; if (k === 'snap' || /\/snap$/.test(k)) continue; if (typeof x === 'number' && isFinite(x)) v[k] = x; else if (typeof x === 'string') v[k] = x.slice(0, 64); else if (typeof x === 'boolean') v[k] = x ? 1 : 0; else continue; n++; }
+      snaps.push({ name, v });
+    }
+    if (!snaps.length) return;
+    out.snaps = snaps;
+    out.snap = clamp(+out.snapIn || 0, 0, snaps.length - 1);
+  }
+  // the value of one knob at snapshot position pos (sp: its spec, for the curve)
+  function snapValue(snaps, pos, key, sp) {
+    const n = snaps.length; if (!n) return undefined;
+    pos = clamp(+pos || 0, 0, n - 1);
+    const i = Math.min(Math.floor(pos), n - 1), j = Math.min(i + 1, n - 1), f = pos - i;
+    let a = snaps[i].v[key], b = snaps[j].v[key];
+    if (a === undefined) a = b; if (b === undefined) b = a; if (a === undefined) return undefined;
+    if (f < 1e-6 || a === b) return a;
+    if (f > 1 - 1e-6) return b;
+    if (typeof a !== 'number' || typeof b !== 'number' || !sp || sp.options || sp.bool || sp.type) return f < 0.5 ? a : b;
+    const na = knobN(sp, a), nb = knobN(sp, b);
+    if (!isFinite(na) || !isFinite(nb)) return a + (b - a) * f;
+    return knobV(sp, na + (nb - na) * f);
+  }
+  function snapKeys(snaps) { const ks = new Set(); for (const s0 of snaps) for (const k in s0.v) ks.add(k); return [...ks].sort((x, y) => (x.startsWith('macro/') ? 1 : 0) - (y.startsWith('macro/') ? 1 : 0)); } // macros last: they set the knobs they drive
   function normMacros(raw, nodes, lib, warn) {
     if (!Array.isArray(raw)) return undefined;
     const out = [], used = {};
@@ -2169,6 +2213,7 @@ function RigEngine() {
     }
     const out = { nodes, wires };
     if (kind !== 'sub') { const mc = normMacros(g.macros, nodes, lib, warn); if (mc) out.macros = mc; }
+    if (kind === 'voice') { const o2 = { snapIn: g.snap }; normSnaps(g.snaps, o2); if (o2.snaps) { out.snaps = o2.snaps; out.snap = o2.snap; } }
     return out;
   }
   function normFx(f, warn, ctx) {
@@ -2182,6 +2227,7 @@ function RigEngine() {
       o.nodes = gg.nodes; o.wires = gg.wires; if (gg.macros) o.macros = gg.macros;
       if (!Object.keys(o.nodes).length) { o.nodes = { in: { type: 'in', p: {} }, out: { type: 'out', p: defaults(MODS.out.params) } }; o.wires = [['in', 'out', 'out', 'in']]; }
     }
+    { const o2 = { snapIn: f.snap }; normSnaps(f.snaps, o2); if (o2.snaps) { o.snaps = o2.snaps; o.snap = o2.snap; } }
     return o;
   }
   function normSet(set) { const o = {}; for (const k in set) { const v = set[k]; if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') o[String(k)] = typeof v === 'boolean' ? (v ? 1 : 0) : v; } return Object.keys(o).length ? o : undefined; }
@@ -2249,6 +2295,10 @@ function RigEngine() {
     o.mode = ['euclid', 'markov'].indexOf(g.mode) >= 0 ? g.mode : 'random';
     o.pick = ['random', 'walk', 'order', 'pingpong'].indexOf(g.pick) >= 0 ? g.pick : g.mode === 'walk' ? 'walk' : 'random';
     o.matrix = normMatrix(g.matrix, o.notes.map((x) => x.v));
+    // Markov flow: "down" walks the rows top to bottom, one row per step (each row picks one of its marked cells, by weight,
+    // and plays that column's state: the diagonal plays the states in order); "jump" (older songs) goes to the row of the
+    // column picked, so the chain wanders anywhere
+    o.flow = g.flow === 'down' ? 'down' : 'jump';
     // optional per-state values (Markov): velocity and length for each note of the pool, null = use the dice
     const per = (a, lo, hi) => (Array.isArray(a) && a.some((x) => x != null && x !== '') ? o.notes.map((_, i) => (a[i] == null || a[i] === '' || !isFinite(+a[i]) ? null : clamp(+a[i], lo, hi))) : null);
     o.svel = per(g.svel, 0, 1); o.slen = per(g.slen, 0.05, 16);
@@ -2285,7 +2335,7 @@ function RigEngine() {
   }
   function genToJSON(o) {
     const w = (list, f) => list.map((x) => f(x.v) + (x.w !== 1 ? '*' + x.w : '')).join(' ');
-    const out = { matrix: o.matrix.map((r) => r.map((x) => Math.round(x * 100) / 100)), meters: w(o.meters, (v) => v.s), divs: w(o.divs, (v) => v.s), notes: w(o.notes, (v) => noteName(v)), mode: o.mode, pick: o.pick, density: o.density, down: o.down, ratchet: o.ratchet, ratchetMax: o.ratchetMax, repeat: o.repeat, mutate: o.mutate, jump: o.jump, vel: [o.velLo, o.velHi], len: [o.lenLo, o.lenHi], seed: o.seed };
+    const out = { matrix: o.matrix.map((r) => r.map((x) => Math.round(x * 100) / 100)), meters: w(o.meters, (v) => v.s), divs: w(o.divs, (v) => v.s), notes: w(o.notes, (v) => noteName(v)), mode: o.mode, pick: o.pick, flow: o.flow, density: o.density, down: o.down, ratchet: o.ratchet, ratchetMax: o.ratchetMax, repeat: o.repeat, mutate: o.mutate, jump: o.jump, vel: [o.velLo, o.velHi], len: [o.lenLo, o.lenHi], seed: o.seed };
     if (o.svel) out.svel = o.svel; if (o.slen) out.slen = o.slen; if (o.sdur) out.sdur = o.sdur;
     return out;
   }
@@ -2505,9 +2555,20 @@ function RigEngine() {
       }
       if (sc.set) o.set = sc.set;
       if (sc.ramp) o.ramp = sc.ramp;
+      // which snapshot each sound or effect plays in this scene: {"pad/inst": 1, "pad/fx/0": "B"} (by number or name); one left out plays its own snap
+      if (sc.snaps && typeof sc.snaps === 'object') { const sn = {}; for (const k in sc.snaps) { const v = sc.snaps[k]; if (typeof v === 'number' && isFinite(v) && v >= 0) sn[k] = v; else if (typeof v === 'string' && v) sn[k] = v.slice(0, 24); } if (Object.keys(sn).length) o.snaps = sn; }
       const au = normAutoTable(sc.auto, o.bars * 4); if (au) o.auto = au;
       return o;
     });
+    { // scene snapshot choices by name -> number; ones that name no snapshot are dropped
+      const devOf = (dp) => { const a = dp.split('/'); const t = s.tracks.find((x) => x.id === a[0]) || s.returns.find((x) => x.id === a[0]) || (a[0] === 'master' ? s.master : null); if (!t) return null; if (a[1] === 'inst' && a.length === 2) return t.inst || null; if (a[1] === 'fx' && a.length === 3) return (t.fx || [])[+a[2]] || null; return null; };
+      for (const o of s.scenes) if (o.snaps) {
+        for (const k in o.snaps) { const d = devOf(k), v = o.snaps[k]; if (!d || !d.snaps) { warn('scene "' + o.name + '": ' + k + ' has no snapshots'); delete o.snaps[k]; continue; }
+          if (typeof v === 'string') { const j = d.snaps.findIndex((x) => x.name === v); if (j < 0) { warn('scene "' + o.name + '": ' + k + ' has no snapshot "' + v + '"'); delete o.snaps[k]; } else o.snaps[k] = j; }
+          else o.snaps[k] = clamp(v, 0, d.snaps.length - 1); }
+        if (!Object.keys(o.snaps).length) delete o.snaps;
+      }
+    }
     // automation without scenes, and the values parameters go back to where they are not automated
     if (raw.autoBars !== undefined || raw.auto) s.autoBars = clamp(Math.round(+raw.autoBars || 0) || songLoopBars(s), 1, 64);
     { const au = normAutoTable(raw.auto, (s.autoBars || 4) * 4); if (au) s.auto = au; }
@@ -2858,7 +2919,7 @@ function RigEngine() {
       default: { let tot = 0; for (const x of g.notes) tot += x.w; let k = r() * tot; for (let j = 0; j < N; j++) { k -= g.notes[j].w; if (k <= 0) return j; } return N - 1; }
     }
   }
-  function genStep(g, r, i, t, forced) {
+  function genStep(g, r, i, t, forced, rowDur) {
     const lerp = (a, b) => a + (b - a) * r();
     const idx = forced !== undefined ? forced : pickIdx(g, r, t);
     t.lastIdx = idx;
@@ -2867,7 +2928,7 @@ function RigEngine() {
     if (g.svel && g.svel[idx] != null) st.v = g.svel[idx];
     // a Markov state that lasts n steps plays its note for all n steps (its own length, if set, still wins);
     // ratchets spread over those n steps
-    const d = g.sdur && g.sdur[idx] != null ? g.sdur[idx] : 1;
+    const d = rowDur !== undefined ? rowDur : g.sdur && g.sdur[idx] != null ? g.sdur[idx] : 1; // flowing down: how long the row lasts
     if (d > 1) st.d = d;
     if (g.slen && g.slen[idx] != null) st.l = g.slen[idx];
     else if (d > 1) st.l = d;
@@ -2875,7 +2936,11 @@ function RigEngine() {
   }
   function genBar(t, g) {
     const r = t.rng, old = t.bar;
-    if (old && g.mode === 'markov' && old.ss && r() < g.repeat) {
+    if (old && g.mode === 'markov' && g.flow === 'down' && old.ri && r() < g.repeat) {
+      // flowing down: replay the last bar when it ends where it started (the rows come round in step with the bar)
+      if (old.startRow === old.endRow && old.startRem === old.endRem) { t.mrow = old.endRow; t.mrem = old.endRem; t.ms = old.endState; return Object.assign({}, old, { rep: true }); }
+    }
+    if (old && g.mode === 'markov' && g.flow !== 'down' && old.ss && r() < g.repeat) {
       // Markov: replay the last bar exactly, but only when the grid allows the jump from its end back to its start
       const N = g.matrix.length, first = old.firstState;
       const loops = old.startState === old.endState && old.startRem === old.endRem;
@@ -2892,6 +2957,28 @@ function RigEngine() {
     const m = pickW(g.meters, r), d = pickW(g.divs, r);
     const beats = m.num * 4 / m.den, n = Math.max(1, Math.round(beats * d.d));
     const steps = new Array(n).fill(null);
+    if (g.mode === 'markov' && g.flow === 'down') {
+      const N = g.matrix.length, rest = N - 1, R = N - 1; // the rows walked: one per note state (the rest row is not one)
+      let row = t.mrow === undefined || t.mrow >= R ? 0 : t.mrow;
+      if (!(t.mrem > 0) || t.mrem > 32) t.mrem = 0;
+      const startRow = row, startRem0 = t.mrem;
+      const ss = new Array(n).fill(-1), ri = new Array(n).fill(-1), hold = new Array(n).fill(false);
+      const pick = (w, upto) => { let tot = 0; for (let j = 0; j < upto; j++) if (w[j] > 0) tot += w[j]; if (tot <= 0) return -1; let k = r() * tot; for (let j = 0; j < upto; j++) { if (!(w[j] > 0)) continue; if (k < w[j]) return j; k -= w[j]; } for (let j = upto - 1; j >= 0; j--) if (w[j] > 0) return j; return -1; };
+      let st = t.ms !== undefined && t.ms < N ? t.ms : rest, cur = row > 0 ? row - 1 : R - 1;
+      for (let i = 0; i < n; i++) {
+        if (t.mrem > 0) { t.mrem--; ss[i] = st === rest ? -1 : st; ri[i] = cur; hold[i] = true; continue; } // the row still lasts
+        const w = g.matrix[row];
+        st = pick(w, N); if (st < 0) st = rest; // nothing marked on the row: a rest
+        if (i === 0 && st === rest && r() < g.down) { const alt = pick(w, rest); if (alt >= 0) st = alt; }
+        const dur = g.sdur && g.sdur[row] != null ? g.sdur[row] : 1;
+        if (st !== rest) { steps[i] = genStep(g, r, i, t, st, dur); ss[i] = st; }
+        ri[i] = row; cur = row;
+        t.mrem = dur - 1;
+        row = (row + 1) % R;
+      }
+      t.mrow = row; t.ms = st;
+      return { sig: m.s, div: d.s, n, sb: beats / n, steps, ss, ri, hold, flow: 'down', startRow, startRem: startRem0, endRow: row, endRem: t.mrem, endState: st };
+    }
     if (g.mode === 'markov') {
       const N = g.matrix.length, rest = N - 1;
       let st = t.ms === undefined || t.ms >= N ? 0 : t.ms;
@@ -3641,15 +3728,50 @@ function RigEngine() {
       this.arps = []; this.fill = false; this.arpRnd = mkRng(7);
       this.touch = {}; this.autoRefs = {}; this.autoDirty = new Set(); this.autoMeta = false; this.autoVals = {};
       this.rn = { on: false, mode: 'overdub', q: 0, armed: new Set(), take: 0 }; this.rnSkip = {};
+      this.snapPos = {}; this.snapOut = null; this.snapRefs = {};
+    }
+    // ---- snapshots (see normSnaps). dp: a sound or effect, "<track>/inst" or "<track>/fx/<i>"
+    snapDev(dp) {
+      const a = String(dp).split('/'), t = this.byId[a[0]]; if (!t || !this.song) return null;
+      if (a[1] === 'inst' && a.length === 2) return t.isBus ? null : this.defInst(t.id) || null;
+      if (a[1] === 'fx' && a.length === 3) return (this.defFx(t.id) || [])[+a[2]] || null;
+      return null;
+    }
+    snapAt(dp) { const d = this.snapDev(dp); return dp in this.snapPos ? this.snapPos[dp] : d && d.snap || 0; }
+    // move the snapshot knob of dp to pos: every knob the snapshots hold goes where they put it
+    applySnap(dp, pos) {
+      const d = this.snapDev(dp); if (!d || !d.snaps || !d.snaps.length) return;
+      pos = clamp(+pos || 0, 0, d.snaps.length - 1); if (!isFinite(pos)) return;
+      this.snapPos[dp] = pos; (this.snapOut || (this.snapOut = {}))[dp] = pos;
+      const rc = this.snapRefs[dp] || (this.snapRefs[dp] = {});
+      for (const k of snapKeys(d.snaps)) {
+        let r = rc[k]; if (r === undefined) { try { r = this.resolve(dp + '/' + k) || null; } catch (e) { r = null; } rc[k] = r; }
+        if (!r) continue;
+        const v = snapValue(d.snaps, pos, k, r.spec); if (v === undefined) continue;
+        r.set(r.spec && r.spec.options && typeof v === 'number' ? r.spec.options[clamp(Math.round(v), 0, r.spec.options.length - 1)] : v);
+      }
+    }
+    // a scene starts: each sound and effect with snapshots goes to the one the scene picks, or its own
+    sceneSnaps(sc) {
+      if (!this.song) return;
+      const each = (t, isBus) => {
+        const id = t.id;
+        if (!isBus && t.inst && t.inst.snaps) { const dp = id + '/inst', v = sc && sc.snaps && sc.snaps[dp] !== undefined ? sc.snaps[dp] : t.inst.snap || 0; if (this.snapPos[dp] !== v) this.applySnap(dp, v); }
+        (t.fx || []).forEach((f, i) => { if (!f.snaps) return; const dp = id + '/fx/' + i, v = sc && sc.snaps && sc.snaps[dp] !== undefined ? sc.snaps[dp] : f.snap || 0; if (this.snapPos[dp] !== v) this.applySnap(dp, v); });
+      };
+      for (const t of this.song.tracks) each(t, false);
+      for (const t of this.song.returns || []) each(t, true);
+      if (this.song.master) each(this.song.master, true);
     }
     // ---- note recording: with Rec on and playing, notes played live into armed tracks go into the pattern each track is
     // playing (a piano-roll or step pattern), at the step where they were heard, and play from the next time round.
     // quantize q (beats, 0 = off) snaps their starts; mode 'replace' wipes the older notes as the playhead passes them.
     // Each recorded note is posted to the editor as {t:'recnote'}, each wipe as {t:'recwipe'}.
-    recBeat(at) {
+    // run: on the running beat count since Play (it does not go back to 0 when the scene loops), for how long a note was held
+    recBeat(at, run) {
       let lag = 0;
       if (at !== undefined && isFinite(at) && typeof currentTime === 'number') lag = clamp(currentTime - at, 0, 0.5) * this.G.bpm / 60;
-      return this.sceneBeat - lag;
+      return (run ? this.playBeat : this.sceneBeat) - lag;
     }
     recReady(t) {
       const p = t.pat;
@@ -3661,17 +3783,18 @@ function RigEngine() {
       if (!this.rn.on || !this.playing || !this.rn.armed.has(t.id) || !this.recReady(t)) return;
       const p = t.pat, b = this.recBeat(at);
       const s0 = (((b * p.div) % p.len) + p.len) % p.len;
-      (t.recHeld || (t.recHeld = {}))[n] = { s: s0, b, v, pat: t.patIndex };
+      (t.recHeld || (t.recHeld = {}))[n] = { s: s0, b, pb: this.recBeat(at, true), v, pat: t.patIndex };
     }
     recNoteOff(t, n, at) {
       const hd = t.recHeld && t.recHeld[n]; if (!hd) return;
       delete t.recHeld[n];
       const P = t.pats[hd.pat]; if (!P || P.algo || P.gen) return;
-      const len = P.len, div = P.div, b = this.recBeat(at);
+      const len = P.len, div = P.div, pb = this.recBeat(at, true);
       let s0 = hd.s;
       if (this.rn.q > 0) { const qs = this.rn.q * div; s0 = Math.round(s0 / qs) * qs; if (s0 >= len - 1e-6) s0 -= len; }
       s0 = Math.round(s0 * 1000) / 1000;
-      let l = Math.max(0.05, (b - hd.b) * div); l = Math.round(Math.min(l, len - s0) * 1000) / 1000; if (l < 0.05) l = 0.05;
+      // held across the loop point: the note keeps its length and sounds on into the next pass (at most a whole loop)
+      let l = Math.max(0.05, (pb - hd.pb) * div); l = Math.round(Math.min(l, len) * 1000) / 1000; if (l < 0.05) l = 0.05;
       const note = { s: s0, n: clamp(n | 0, 0, 127), v: Math.round(clamp(hd.v, 0.01, 1) * 100) / 100, l };
       const nn = Object.assign({}, note, { take: this.rn.take });
       const bin = Math.floor(s0 + 1e-9), off = s0 - bin; if (off > 1e-6) nn.off = off;
@@ -3821,7 +3944,7 @@ function RigEngine() {
       this.soloSet = set;
     }
     load(song) {
-      this.song = song;
+      this.song = song; this.snapPos = {}; this.snapRefs = {};
       this.G.bpm = song.bpm; this.G.swing = song.swing;
       this.tun = song.tuning ? tuningTable(song.tuning) : null;
       this.G.scale = song.scale && song.scale.notes ? song.scale.notes.map((x) => (x + song.scale.root) % 12) : null;
@@ -3840,7 +3963,7 @@ function RigEngine() {
       if (this.playing) this.startScene(this.scene, true);
     }
     msg(m) {
-      if (!/^(p|touchend|fill|note|non|noff|mode|auto|cc|clock|jump)$/.test(m.t)) this.autoRefs = {}; // the patch may have changed: look the paths up again
+      if (!/^(p|touchend|fill|note|non|noff|mode|auto|cc|clock|jump|snapkey)$/.test(m.t)) { this.autoRefs = {}; this.snapRefs = {}; } // the patch may have changed: look the paths up again
       if (m.t === 'song' || m.t === 'track' || m.t === 'bus') this.rev++;
       switch (m.t) {
         case 'song': this.load(m.song); break;
@@ -3867,6 +3990,9 @@ function RigEngine() {
           t.setFx(m.bus.fx); t.mix.vol = m.bus.vol; t.mix.pan = m.bus.pan; t.out = m.bus.out || (m.bus.id === 'master' ? 'hw:1' : 'master'); this.reroute(); break;
         }
         case 'scenes': this.scenes = m.scenes; this.song.scenes = m.scenes; break;
+        // the editor changed a device's snapshots: {dev, snaps, snap}; or stored one knob into one: {dev, i, key, v}
+        case 'snaps': { const d = this.snapDev(m.dev); if (!d) break; if (m.snaps && m.snaps.length) { d.snaps = m.snaps; d.snap = clamp(+m.snap || 0, 0, m.snaps.length - 1); } else { delete d.snaps; delete d.snap; delete this.snapPos[m.dev]; } break; }
+        case 'snapkey': { const d = this.snapDev(m.dev), sn = d && d.snaps && d.snaps[m.i]; if (sn) sn.v[m.key] = m.v; break; }
         case 'p': {
           const r = this.resolve(m.path); if (!r) break;
           const before = m.rec && r.get ? r.get() : undefined;
@@ -3960,6 +4086,10 @@ function RigEngine() {
         const tgs = () => refs || (refs = mc.to.map((tg) => [tg, this.resolve(base + tg.node + '/' + tg.param)]).filter((x) => x[1]));
         return { spec: num(0, 1, 0, 'lin', { unit: '%' }), set: (v) => { mc.value = clamp(+v || 0, 0, 1); for (const [tg, r] of tgs()) r.set(macroVal(r.spec, tg, mc.value)); }, get: () => mc.value || 0 };
       }
+      if ((a[1] === 'inst' && a[2] === 'snap' && a.length === 3) || (a[1] === 'fx' && a[3] === 'snap' && a.length === 4)) {
+        const dp = a.slice(0, a.length - 1).join('/'), d = this.snapDev(dp); if (!d || !d.snaps) return null;
+        return { spec: num(0, Math.max(1, d.snaps.length - 1), 0, 'lin', { snap: d.snaps.length }), set: (v) => this.applySnap(dp, v), get: () => this.snapAt(dp) };
+      }
       if (a[1] === 'inst' && t.shared) return nodeParam(t, a.slice(2));
       if (a[1] === 'fx') {
         const f = t.fx[+a[2]]; if (!f) return null;
@@ -3977,7 +4107,7 @@ function RigEngine() {
       if (!this.playing) return;
       const sc = this.scenes[this.scene];
       const pi = t.force >= 0 ? t.force : sc ? sc.play[t.id] : t.loopPat;
-      t.releaseLocks(); t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0;
+      t.releaseLocks(); t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0; t.mrow = undefined;
       t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null; t.patIndex = t.pat ? pi : -1;
       if (!t.pat) { for (const v of t.voices) v.gate = 0; return; }
       if (t.pat.algo) this.algoReset(t);
@@ -4001,7 +4131,7 @@ function RigEngine() {
         t.pat = pi !== undefined && t.pats[pi] ? t.pats[pi] : null;
         t.patIndex = t.pat ? pi : -1;
         t.releaseLocks();
-        t.stepCount = 0; t.step = 0; t.nextBeat = 0; t.loop = 0; t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0; t.pre = false;
+        t.stepCount = 0; t.step = 0; t.nextBeat = 0; t.loop = 0; t.q = []; t.bar = null; t.gi = 0; t.ord = 0; t.lastIdx = undefined; t.mrem = 0; t.mrow = undefined; t.pre = false;
         if (t.pat && t.pat.gen) { const sd = t.pat.gen.seed; t.rng = mkRng(sd ? sd : (Math.random() * 4294967296) >>> 0); t.loop = -1; }
         // algorithmic patterns start fresh on play or when the track switches to them; otherwise they carry on across scenes
         if (t.pat && t.pat.algo && (hard || t.pat !== prev || !t.pat.st)) this.algoReset(t);
@@ -4010,6 +4140,7 @@ function RigEngine() {
       this.ramps = [];
       this.touch = {}; this.autoVals = {}; for (const k in this.autoRefs) if (this.autoRefs[k]) this.autoRefs[k]._av = undefined;
       this.autoRestore(true);
+      this.sceneSnaps(sc);
       if (sc && sc.set) for (const k in sc.set) { const f = this.setter(k); if (f) f(sc.set[k]); }
       if (sc && sc.ramp) for (const k in sc.ramp) { const f = this.setter(k), r = sc.ramp[k]; if (f && Array.isArray(r)) { f(r[0]); this.ramps.push([f, +r[0], +r[1]]); } }
     }
@@ -4145,7 +4276,7 @@ function RigEngine() {
         for (const t of tr) {
           if (t.pat && t.pat.algo && t.pat.st) { const v = algoView(t.pat); if (v) (algo = algo || {})[t.id] = v; }
           meters[t.id] = t.peak; t.peak = 0; steps[t.id] = t.pat ? t.step : -1; pats[t.id] = t.pat ? t.patIndex : -1;
-          if (t.pat && t.pat.gen && t.bar) (gens = gens || {})[t.id] = { sig: t.bar.sig, div: t.bar.div, n: t.bar.n, i: t.gi - 1, rep: !!t.bar.rep, hits: t.bar.steps.map((x) => (x ? (x.r > 1 ? -x.v : x.v) : 0)), si: t.bar.ss || t.bar.steps.map((x) => (x ? x.si : -1)), hd: t.bar.hold || null };
+          if (t.pat && t.pat.gen && t.bar) (gens = gens || {})[t.id] = { sig: t.bar.sig, div: t.bar.div, n: t.bar.n, i: t.gi - 1, rep: !!t.bar.rep, hits: t.bar.steps.map((x) => (x ? (x.r > 1 ? -x.v : x.v) : 0)), si: t.bar.ss || t.bar.steps.map((x) => (x ? x.si : -1)), hd: t.bar.hold || null, ri: t.bar.ri || null };
         }
         for (const t of rets) { meters[t.id] = t.peak; t.peak = 0; }
         meters.master = M.peak; M.peak = 0;
@@ -4154,7 +4285,8 @@ function RigEngine() {
         const chords = {};
         if (this.progList && this.progList.length) chords.song = progIndex(this.progList, this.progLen, this.progRestart === 'song' ? this.playBeat : this.sceneBeat);
         for (const t of tr) if (t.chords && t.chords.list && t.chords.list.length) chords[t.id] = progIndex(t.chords.list, t.chords.len, this.sceneBeat);
-        this.post({ t: 'st', outs, chords, playing: this.playing, scene: this.scene, pending: this.pending, beat: this.sceneBeat, gb: this.G.beat, bpm: this.G.bpm, meters, steps, pats, gens, algo, fill: this.fill, av: this.autoVals, ab: this.autoKey(), apos: this.autoPos(), alen: this.autoLen(), rec: Object.keys(this.touch) });
+        this.post({ t: 'st', outs, chords, playing: this.playing, scene: this.scene, pending: this.pending, beat: this.sceneBeat, gb: this.G.beat, bpm: this.G.bpm, meters, steps, pats, gens, algo, fill: this.fill, av: this.autoVals, ab: this.autoKey(), apos: this.autoPos(), alen: this.autoLen(), rec: Object.keys(this.touch), snp: this.snapOut });
+        this.snapOut = null;
         if (this.autoDirty.size || this.autoMeta) { // recorded automation goes back to the editor, which keeps the song
           const key = this.autoKey(), tab = this.autoTable(false) || {}, paths = {};
           for (const p of this.autoDirty) paths[p] = tab[p] && tab[p].length ? tab[p].map((q) => q.slice()) : null;
@@ -4166,7 +4298,7 @@ function RigEngine() {
   }
 
   // internals exposed for the test suite
-  const _ = { mkRng, SYNCB, mtGroove, MT_GROOVES, macroVal, normMacros, knobN, knobV, knobIn, normAutoTable, autoAt, wipeAuto, putAuto, simplifyAuto, songLoopBars, patHasContent, velGain, euclidRow, miniValueAt, miniVel, euclidBits, normCond, parseRule, queryMini, degreeNote, miniNote, compileAlgo, algoInit, algoStep, algoView, keepAlgoState, arpSeq, ARP_RATES, ARP_ORDERS, ALGO_KNOBS, CA_RULES, MINI_DRUMS, normEuclid, normTuring, normCart, normCells, normMini, mix32, parseScala, normTuning, tuningTable, normScale, fsin, P, O, SYNCB, blep, inp, envTick, svf, lfoWave, rnd, xf, readI, biq, bqRun, optName, takeParams, parseWire, normSet, weighted, parseSig, parseDiv, GEN_KEYS, normMatrix, slug, normBus, compileGraph, sharedParams, instGraph, makeVoice, Track, mapVal, mkRng, pickW, genStep, genBar, compileFor, normControls, nodeParam, SUB_DEPTH, whiteIdx, progIndex };
+  const _ = { mkRng, SYNCB, mtGroove, MT_GROOVES, macroVal, normMacros, normSnaps, snapValue, snapKeys, knobN, knobV, knobIn, normAutoTable, autoAt, wipeAuto, putAuto, simplifyAuto, songLoopBars, patHasContent, velGain, euclidRow, miniValueAt, miniVel, euclidBits, normCond, parseRule, queryMini, degreeNote, miniNote, compileAlgo, algoInit, algoStep, algoView, keepAlgoState, arpSeq, ARP_RATES, ARP_ORDERS, ALGO_KNOBS, CA_RULES, MINI_DRUMS, normEuclid, normTuring, normCart, normCells, normMini, mix32, parseScala, normTuning, tuningTable, normScale, fsin, P, O, SYNCB, blep, inp, envTick, svf, lfoWave, rnd, xf, readI, biq, bqRun, optName, takeParams, parseWire, normSet, weighted, parseSig, parseDiv, GEN_KEYS, normMatrix, slug, normBus, compileGraph, sharedParams, instGraph, makeVoice, Track, mapVal, mkRng, pickW, genStep, genBar, compileFor, normControls, nodeParam, SUB_DEPTH, whiteIdx, progIndex };
   return { Engine, MODS, FX, SYNC, DIVS, normGen, genToJSON, normSong, noteNum, noteName, parseSteps, convParam, PALETTE, defaults, normGraph, normFx, normPattern, normTrack, normPatches, nodeInfo, flatGraph, pname, parseChord, parseProg, voiceChord, CHORD_Q, normChords, normProgression, parseMini, algoOf, ALGOS, _ };
 }
 
@@ -5210,7 +5342,7 @@ const RigLib = (() => {
 })();
 
 </script>
-<script>const RIG_VERSION = '2026-11-23 18:28';</script>
+<script>const RIG_VERSION = '2026-11-25 20:35';</script>
 <script>/* ============================================================================================
  * RIG: GUIDE FOR AI AGENTS (how to hand a user a link that opens your composition)
  * ============================================================================================
@@ -5317,7 +5449,10 @@ function undo() {
 function send(m) {
   if (m.t === 'p' && !m.norec && !m.rec && S.song) {
     if (S.rec && S.playing) { m = Object.assign({}, m, { rec: true, at: recClock() }); recTouch(); }
-    else if (S.song.autoBase && m.path in S.song.autoBase) S.song.autoBase[m.path] = m.v; // not recording: an automated control keeps this value outside its automation
+    else {
+      if (S.song.autoBase && m.path in S.song.autoBase) S.song.autoBase[m.path] = m.v; // not recording: an automated control keeps this value outside its automation
+      snapsStore(m.path, m.v); // a sound or effect with snapshots: the move goes into the snapshot playing
+    }
   }
   if (S.send) S.send(m);
 }
@@ -5471,6 +5606,7 @@ function onEngine(m) {
   if (m.t === 'recskip') { recSkipNote(m); return; }
   if (m.t !== 'st') return;
   S.st = m;
+  if (m.snp) for (const dp in m.snp) snapsFollow(dp, m.snp[dp]); // a scene or automation moved a snapshot knob
   showAuto(m.av);
   const lv = S.live;
   if (lv.meters) for (const id in lv.meters) {
@@ -5577,6 +5713,7 @@ function fmt(sp, v) {
   if (u === 'ct') return (v > 0 ? '+' : '') + Math.round(v);
   if (u === 'bit') return v + 'bit';
   if (u === '%') return Math.round(v * 100) + '%';
+  if (sp.names) { const i = Math.min(Math.floor(v + 1e-6), sp.names.length - 1), f = v - i; return f < 0.01 || i >= sp.names.length - 1 ? sp.names[i] : f > 0.99 ? sp.names[i + 1] : sp.names[i] + '›' + sp.names[i + 1] + ' ' + Math.round(f * 100) + '%'; } // a snapshot knob
   return Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(1);
 }
 function arcPath(n, r) {
@@ -5800,7 +5937,7 @@ function movePaths(t, fn) {
   for (const mc of t.macros || []) { const r = fn(mc.path); if (r) mc.path = r; }
   for (const pt of t.patterns || []) for (const nt of pt.notes || []) if (nt.set) { const o = {}; for (const k in nt.set) o[fn(k) || k] = nt.set[k]; nt.set = o; }
   for (const x of S.song.tracks) if (x.ctl) for (const tg of x.ctl.targets || []) tg.path = abs(tg.path);
-  for (const sc of S.song.scenes || []) for (const key of ['set', 'ramp']) if (sc[key]) { const o = {}; for (const k in sc[key]) o[abs(k)] = sc[key][k]; sc[key] = o; }
+  for (const sc of S.song.scenes || []) for (const key of ['set', 'ramp', 'snaps']) if (sc[key]) { const o = {}; for (const k in sc[key]) o[abs(k)] = sc[key][k]; sc[key] = o; }
   let ch = false; for (const mp of M.maps) { const n = abs(mp.path); if (n !== mp.path) { mp.path = n; ch = true; } } if (ch) saveMidi();
 }
 // ------------------------------------------------------------------ effects as patches
@@ -5923,6 +6060,10 @@ function markMacros() {
 }
 function paramRef(t, rel) {
   const a = rel.split('/');
+  if ((a[0] === 'inst' && a[1] === 'snap' && a.length === 2) || (a[0] === 'fx' && a[2] === 'snap' && a.length === 3)) { // the snapshot knob
+    const dev = a[0] === 'inst' ? 'inst' : 'fx/' + a[1], d = devObj(t, dev); if (!d || !d.snaps) return null;
+    return { sp: { min: 0, max: Math.max(1, d.snaps.length - 1), def: 0, curve: 'lin', names: d.snaps.map((x) => x.name) }, get: () => snapsPos(t, dev), set: (v) => { snapsChoose(t, dev, v); snapsApplyUI(t, dev, v); } };
+  }
   if (a[0] === 'inst' && a[1] === 'macro' && a.length === 3) return macroRef(t, t.inst, 'inst/', +a[2]);
   if (a[0] === 'fx' && a[2] === 'macro' && a.length === 4) return macroRef(t, t.fx[+a[1]], 'fx/' + a[1] + '/', +a[3]);
   if (a[0] === 'inst' && t.inst && t.inst.nodes[a[1]]) return graphRef(t.inst, a.slice(1));
@@ -6212,7 +6353,7 @@ function loadSong(raw, o = {}) {
   try { res = R.normSong(expandSounds(typeof raw === 'string' ? JSON.parse(raw) : raw)); } catch (e) { toast('That is not valid song JSON: ' + e.message); return false; }
   if (S.song && !o.noSnap) snap();
   if (!o.noSnap && !o.keepView) S.lastOffer = null; // another song was opened: no more offer to carry on
-  S.song = res.song; S.selPat = {}; S.forced = {};
+  S.song = res.song; S.selPat = {}; S.forced = {}; S.snapPos = {};
   dropChoiceAuto(); // automation recorded on a track or sample choice (older versions recorded it) only fought the menu
   // scale names are matched without caring about case or extra spaces ("Dorian" = "dorian")
   if (S.song.scale && !L.SCALES[S.song.scale.name]) { const k = Object.keys(L.SCALES).find((x) => x.toLowerCase() === S.song.scale.name.toLowerCase().trim().replace(/\s+/g, ' ')); if (k) S.song.scale.name = k; }
@@ -7089,7 +7230,8 @@ function arrangement() {
         b.textContent = v === undefined ? '·' : String.fromCharCode(65 + v); b.classList.toggle('has', v !== undefined);
         pushScenes();
       } }, cur !== undefined ? String.fromCharCode(65 + cur) : '·');
-      row.append(h('td', null, b));
+      const sb = trackHasSnaps(t) ? h('button', { class: 'snapcell', title: 'Snapshots ' + t.name + ' plays in this scene', 'aria-label': 'Snapshots of ' + t.name + ' in ' + sc.name, onclick: () => sceneSnapsDialog(t, i) }, '◆ ' + sceneSnapsLabel(t, sc)) : null;
+      row.append(h('td', null, b, sb));
     }
     row.append(h('td', { style: { 'white-space': 'nowrap', padding: '0 6px' } },
       h('button', { class: 'small ghost', title: 'Duplicate scene (with its automation)', 'aria-label': 'Duplicate scene', onclick: () => { snap(); s.scenes.splice(i + 1, 0, Object.assign(clone(sc), { name: sc.name + ' 2' })); pushScenes(); render(); } }, '⧉'),
@@ -7210,7 +7352,7 @@ function renderTrack(m, t) {
       head.append(h('button', { class: 'small', onclick: () => trackMidiDialog(t) }, 'MIDI'));
     }
     head.append(h('button', { class: 'small ghost', onclick: () => { snap(); const i = S.song.tracks.indexOf(t); const c = clone(t); c.id = t.id + '-copy'; c.name = t.name + ' copy'; const { song } = normWith(Object.assign(clone(S.song), { tracks: [...S.song.tracks.slice(0, i + 1), c, ...S.song.tracks.slice(i + 1)] })); S.song = song; pushSong(); go({ v: 'track', id: song.tracks[i + 1].id, tab }); } }, 'Duplicate'));
-    head.append(h('button', { class: 'small ghost', onclick: () => { snap(); S.song.tracks.splice(S.song.tracks.indexOf(t), 1); S.song.scenes.forEach((sc) => delete sc.play[t.id]); pushSong(); go({ v: 'song' }); toast('Track deleted', { label: 'Undo', fn: undo }); } }, 'Delete'));
+    head.append(h('button', { class: 'small ghost', onclick: () => { snap(); S.song.tracks.splice(S.song.tracks.indexOf(t), 1); S.song.scenes.forEach((sc) => { delete sc.play[t.id]; if (sc.snaps) { for (const k in sc.snaps) if (k.startsWith(t.id + '/')) delete sc.snaps[k]; if (!Object.keys(sc.snaps).length) delete sc.snaps; } }); pushSong(); go({ v: 'song' }); toast('Track deleted', { label: 'Undo', fn: undo }); } }, 'Delete'));
   }
   if (bus && t.id !== 'master') {
     head.append(h('span', { style: { flex: 1 } }), h('span', { class: 'hint' }, 'Return ' + t.id + ': tracks reach it with their “Send ' + t.id + '” knobs'));
@@ -7418,7 +7560,7 @@ function deleteBusTrack(t) {
   S.song.tracks.splice(S.song.tracks.indexOf(t), 1);
   const dead = (p) => p.startsWith(t.id + '/');
   for (const x of S.song.tracks) if (x.ctl) x.ctl.targets = (x.ctl.targets || []).filter((tg) => !dead(tg.path));
-  for (const sc of S.song.scenes || []) for (const key of ['set', 'ramp']) if (sc[key]) { for (const k in sc[key]) if (dead(k)) delete sc[key][k]; if (!Object.keys(sc[key]).length) delete sc[key]; }
+  for (const sc of S.song.scenes || []) for (const key of ['set', 'ramp', 'snaps']) if (sc[key]) { for (const k in sc[key]) if (dead(k)) delete sc[key][k]; if (!Object.keys(sc[key]).length) delete sc[key]; }
   const before = M.maps.length; M.maps = M.maps.filter((mp) => !dead(mp.path)); if (M.maps.length !== before) saveMidi();
   pushSong();
 }
@@ -7474,7 +7616,7 @@ function deleteReturn(id) {
     for (const pt of t.patterns || []) for (const nt of pt.notes || []) if (nt.set) { for (const k in nt.set) if (dead(k)) delete nt.set[k]; if (!Object.keys(nt.set).length) delete nt.set; }
     if (t.ctl) t.ctl.targets = (t.ctl.targets || []).filter((tg) => !dead(tg.path));
   }
-  for (const sc of S.song.scenes || []) for (const key of ['set', 'ramp']) if (sc[key]) { for (const k in sc[key]) if (dead(k)) delete sc[key][k]; if (!Object.keys(sc[key]).length) delete sc[key]; }
+  for (const sc of S.song.scenes || []) for (const key of ['set', 'ramp', 'snaps']) if (sc[key]) { for (const k in sc[key]) if (dead(k)) delete sc[key][k]; if (!Object.keys(sc[key]).length) delete sc[key]; }
   const before = M.maps.length; M.maps = M.maps.filter((mp) => !dead(mp.path)); if (M.maps.length !== before) saveMidi();
   pushSong();
 }
@@ -7547,7 +7689,7 @@ function markovGen(t, p) {
     const used = (p.notes || []).map((x) => x.n), base = used.length ? Math.min(...used) : R.noteNum(t.note !== undefined ? t.note : t.kind === 'drum' ? 36 : 48);
     notes = scaleNotes(16, base, sc.name, sc.root);
   }
-  return R.genToJSON(R.normGen(Object.assign({}, g, { notes: notes.map(R.noteName).join(' '), matrix: mkDefaultMatrix(notes.length), mode: 'markov', meters: '4/4', divs: '1/16', repeat: 0, ratchet: 0.05, down: 1 }), 60));
+  return R.genToJSON(R.normGen(Object.assign({}, g, { notes: notes.map(R.noteName).join(' '), matrix: mkDownMatrix(notes.length), mode: 'markov', flow: 'down', meters: '4/4', divs: '1/16', repeat: 0, ratchet: 0.05, down: 1 }), 60));
 }
 function renderSeq(m, t) {
   const pi = S.selPat[t.id] || 0, p = curPat(t);
@@ -8082,6 +8224,10 @@ function roll(t, p, changed) {
       if (Math.abs(n.s - Math.round(n.s)) > 1e-3) { g.fillStyle = col('text'); g.globalAlpha = 0.5; g.fillRect(x - 1, r * RH + 1, 1, RH - 2); } // off the grid
       g.fillStyle = t.color; g.globalAlpha = 0.35 + 0.65 * n.v;
       g.beginPath(); g.roundRect ? g.roundRect(x, r * RH + 2, w, RH - 4, 3) : g.rect(x, r * RH + 2, w, RH - 4); g.fill();
+      if (n.s + n.l > p.len + 1e-3) { // runs past the loop end: its tail sounds at the start of the next pass, drawn faint there
+        g.globalAlpha = 0.2 + 0.3 * n.v; const tw = Math.min(n.s + n.l - p.len, p.len) * CW - 2;
+        g.beginPath(); g.roundRect ? g.roundRect(0, r * RH + 2, Math.max(3, tw), RH - 4, 3) : g.rect(0, r * RH + 2, Math.max(3, tw), RH - 4); g.fill();
+      }
       g.globalAlpha = 1;
       if (n.p !== undefined && n.p < 1) { g.fillStyle = col('bg'); g.font = '10px sans-serif'; g.fillText(Math.round(n.p * 100) + '%', x + 2, r * RH + RH - 5); }
       if (n.c) { g.fillStyle = col('bg'); g.font = '10px sans-serif'; g.fillText(n.c, x + 2, r * RH + 11); }
@@ -8462,6 +8608,17 @@ function mkDefaultMatrix(n) {
   }
   return m;
 }
+// flowing down: each row mostly plays its own state (the diagonal: the states in order), sometimes a neighbour, now and then a rest
+function mkDownMatrix(n) {
+  const N = n + 1, m = [];
+  for (let i = 0; i < N; i++) {
+    const row = new Array(N).fill(0);
+    if (i === n) row[0] = 1;
+    else { row[i] = 1; if (i > 0) row[i - 1] = 0.2; if (i + 1 < n) row[i + 1] = 0.2; row[n] = 0.1; }
+    m.push(row);
+  }
+  return m;
+}
 function scaleNotes(count, base, scaleName, root) {
   const iv = L.SCALES[scaleName] || L.SCALES['minor pentatonic'], out = [];
   let o = Math.floor((base - root) / 12) * 12 + root;
@@ -8470,6 +8627,7 @@ function scaleNotes(count, base, scaleName, root) {
 }
 function markovGrid(t, g, pi, changed) {
   const notes = mkStates(g), n = notes.length, N = n + 1;
+  const down = g.flow === 'down', NR = down ? n : N; // flowing down, the rest row is never walked: it is not shown
   const mx = g.matrix, svel = (g.svel || []).slice(), slen = (g.slen || []).slice();
   // how many steps each row (state) lasts before the chain moves on; the last entry is the rest row
   const sdur = Array.from({ length: N }, (_, i) => (g.sdur && g.sdur[i] != null ? g.sdur[i] : 1));
@@ -8489,8 +8647,10 @@ function markovGrid(t, g, pi, changed) {
     const sc = S.song.scale, last = n ? notes[n - 1] : 60;
     const next = sc && L.SCALES[sc.name] ? scaleNotes(2, last + 1, sc.name, sc.root)[0] : last + 2;
     const m2 = mx.map((row) => { const r = row.slice(); r.splice(n, 0, 0); return r; });
-    const newRow = new Array(N + 1).fill(0); newRow[Math.max(0, n - 1)] = 0.6; newRow[N] = 0.15; m2.splice(n, 0, newRow);
-    if (n > 0) m2[n - 1][n] = Math.max(m2[n - 1][n], 0.5);
+    const newRow = new Array(N + 1).fill(0);
+    if (down) newRow[n] = 1; // its own state: the diagonal goes on
+    else { newRow[Math.max(0, n - 1)] = 0.6; newRow[N] = 0.15; if (n > 0) m2[n - 1][n] = Math.max(m2[n - 1][n], 0.5); }
+    m2.splice(n, 0, newRow);
     const d2 = sdur.slice(); d2.splice(n, 0, 1); putDur(d2);
     commit([...notes, next], m2, [...svel, null], [...slen, null]);
   };
@@ -8504,7 +8664,7 @@ function markovGrid(t, g, pi, changed) {
   // grid canvas (scrolls sideways when large)
   const LW = 40, avail = (document.querySelector('main').clientWidth || 360) - 40 - LW, C = clamp(Math.floor(avail / (N + 1.3)), 18, 40);
   const DX = LW + C * N + 4, DW = C; // the "steps" column: how long each row's state lasts
-  const W = DX + DW, H = 26 + C * N, dpr = window.devicePixelRatio || 1;
+  const W = DX + DW, H = 26 + C * NR, dpr = window.devicePixelRatio || 1;
   const cv = h('canvas', { width: W * dpr, height: H * dpr }); cv.style.width = W + 'px'; cv.style.height = H + 'px';
   let cur = -1, nxt = -1;
   const draw = () => {
@@ -8513,8 +8673,9 @@ function markovGrid(t, g, pi, changed) {
     c.fillStyle = col('panel'); c.fillRect(0, 0, W, H);
     c.font = (C < 24 ? 9 : 11) + 'px sans-serif';
     for (let j = 0; j < N; j++) { c.fillStyle = j === sel ? col('accent') : col('dim'); c.save(); c.translate(LW + j * C + C / 2 + 3, 22); c.rotate(-Math.PI / 3); c.fillText(labels[j], 0, 0); c.restore(); }
-    for (let i = 0; i < N; i++) {
+    for (let i = 0; i < NR; i++) {
       if (i === sel) { c.fillStyle = col('accent'); c.globalAlpha = 0.15; c.fillRect(0, 26 + i * C, W, C); c.globalAlpha = 1; }
+      if (down && i === cur) { c.fillStyle = col('accent'); c.globalAlpha = 0.1; c.fillRect(LW, 26 + i * C, C * N, C); c.globalAlpha = 1; } // the row playing
       c.fillStyle = i === cur ? col('accent') : i === sel ? col('text') : col('dim'); c.fillText(labels[i] + (i < n && (svel[i] != null || slen[i] != null) ? '•' : ''), 4, 26 + i * C + C / 2 + 4);
       const row = mx[i];
       for (let j = 0; j < N; j++) {
@@ -8537,8 +8698,8 @@ function markovGrid(t, g, pi, changed) {
     const { i, j, x, y } = cell(e);
     if (x < LW && i >= 0 && i < n) { S.mkSel[key] = sel === i ? -1 : i; render(); return; }          // row label: select state
     if (y < 26 && j >= 0 && j < n) { S.mkSel[key] = sel === j ? -1 : j; render(); return; }          // column label: select state
-    if (x >= DX && i >= 0 && i < N) { e.preventDefault(); cv.setPointerCapture(e.pointerId); snap(); drag = { dur: true, i, y: e.clientY, v0: sdur[i], moved: false }; return; } // steps column
-    if (i < 0 || j < 0 || i >= N || j >= N) return;
+    if (x >= DX && i >= 0 && i < NR) { e.preventDefault(); cv.setPointerCapture(e.pointerId); snap(); drag = { dur: true, i, y: e.clientY, v0: sdur[i], moved: false }; return; } // steps column
+    if (i < 0 || j < 0 || i >= NR || j >= N) return;
     e.preventDefault(); cv.setPointerCapture(e.pointerId); snap(); drag = { i, j, y: e.clientY, v0: mx[i][j], moved: false };
   });
   cv.addEventListener('pointermove', (e) => {
@@ -8556,6 +8717,11 @@ function markovGrid(t, g, pi, changed) {
   S.live.steps = (st) => {
     if (prevLive) prevLive(st);
     const gb = st.gens && st.gens[t.id]; if (!gb || !gb.si || st.pats[t.id] !== pi) { if (cur !== -1) { cur = nxt = -1; draw(); } return; }
+    if (down && gb.ri) { // the row playing, and the cell it picked
+      const a = gb.ri[gb.i], b2 = gb.si[gb.i] >= 0 ? gb.si[gb.i] : N - 1;
+      if (a !== cur || b2 !== nxt) { cur = a; nxt = b2; draw(); }
+      return;
+    }
     const a = gb.si[gb.i] >= 0 ? gb.si[gb.i] : N - 1;
     // the cell about to be used: none while the state is still lasting (a held state is not a transition to itself)
     let b2 = gb.i + 1 < gb.n && !(gb.hd && gb.hd[gb.i + 1]) ? gb.si[gb.i + 1] : -2; b2 = b2 === -1 ? N - 1 : b2 === -2 ? -1 : b2;
@@ -8584,7 +8750,7 @@ function markovGrid(t, g, pi, changed) {
         own(svel, sel, { min: 0, max: 1, def: 0.8, curve: 'lin' }, 'velocity', 0.8),
         own(slen, sel, { min: 0.05, max: 8, def: 1, curve: 'exp', unit: '' }, 'length', 1)),
       h('div', { class: 'row', style: { 'margin-top': '6px' } },
-        h('button', { class: 'small', onclick: () => { snap(); const row = mx[sel].slice(); for (let j = 0; j < N; j++) row[j] = 0; row[(sel + 1) % n] = 1; mx[sel] = row; draw(); changed(); } }, 'Row: only next'),
+        h('button', { class: 'small', onclick: () => { snap(); const row = mx[sel].slice(); for (let j = 0; j < N; j++) row[j] = 0; row[down ? sel : (sel + 1) % n] = 1; mx[sel] = row; draw(); changed(); } }, down ? 'Row: only its own' : 'Row: only next'),
         h('button', { class: 'small', onclick: () => { snap(); for (let j = 0; j < N; j++) mx[sel][j] = Math.random() < 0.3 ? Math.round(Math.random() * 100) / 100 : 0; draw(); changed(); } }, 'Row: random'),
         h('button', { class: 'small', onclick: () => {
           if (n >= 32) return;
@@ -8604,18 +8770,26 @@ function markovGrid(t, g, pi, changed) {
   const fillScale = () => {
     const cnt = clamp(+fCount.value | 0 || 16, 2, 32);
     const nn = scaleNotes(cnt, 12 * (+fOct.value + 1) + +fRoot.value, fScale.value, +fRoot.value);
-    S.mkSel[key] = -1; delete g.sdur; commit(nn, mkDefaultMatrix(cnt), [], []);
+    S.mkSel[key] = -1; delete g.sdur; commit(nn, down ? mkDownMatrix(cnt) : mkDefaultMatrix(cnt), [], []);
   };
-  return h('section', null, h('div', { class: 'sec-h' }, h('h2', null, 'Markov transitions'),
+  const flowSel = h('select', { 'aria-label': 'Markov flow', title: 'Down: the rows play top to bottom, each picking one of its cells. Jump: the chain goes to the row of the cell it picked, anywhere.', onchange: (e) => {
+    snap(); g.flow = e.target.value; changed(); render();
+    toast(g.flow === 'down' ? 'The rows now play top to bottom. Tap Diagonal or Melodic walk for a grid made for it.' : 'The chain now jumps to the row of the cell it picks.');
+  } }, h('option', { value: 'down' }, 'Flow: down the rows'), h('option', { value: 'jump' }, 'Flow: jump to the picked row'));
+  flowSel.value = down ? 'down' : 'jump';
+  return h('section', null, h('div', { class: 'sec-h' }, h('h2', null, down ? 'Markov rows' : 'Markov transitions'), flowSel,
       h('span', { class: 'lbl' }, 'States'), h('button', { class: 'small', 'aria-label': 'Remove a state', onclick: () => removeState(sel >= 0 ? sel : n - 1) }, '−'), h('b', { class: 'mkn' }, String(n)), h('button', { class: 'small', 'aria-label': 'Add a state', onclick: addState }, '+')),
-    h('p', { class: 'hint' }, 'Each step the chain moves from the state it is on (row) to a next state (column); bigger squares are more likely. Tap a cell to step through 0 / ⅓ / ⅔ / 1 or drag it up and down. Tap a note name to edit that state (note, its own velocity and length). The “steps” column sets how many steps each row lasts before the chain moves on (tap to cycle 1, 2, 3, 4, 6, 8, 12, 16 or drag); its note plays that long. The last row and column are “rest”.'),
+    h('p', { class: 'hint' }, down
+      ? 'The rows play from top to bottom, one after the other, then round again. On each row one of its marked cells plays, picked by chance (bigger squares more often): the column says which note, so a diagonal line plays the notes in order (a scale up, a sliced sample forwards). A row with nothing marked, or the last column, is a rest. Tap a cell to step through 0 / ⅓ / ⅔ / 1 or drag it. Tap a note name to set that note and its own velocity and length. The “steps” column sets how long each row lasts (tap to cycle or drag).'
+      : 'Each step the chain moves from the state it is on (row) to a next state (column); bigger squares are more likely. Tap a cell to step through 0 / ⅓ / ⅔ / 1 or drag it up and down. Tap a note name to edit that state (note, its own velocity and length). The “steps” column sets how many steps each row lasts before the chain moves on (tap to cycle 1, 2, 3, 4, 6, 8, 12, 16 or drag); its note plays that long. The last row and column are “rest”.'),
     h('div', { class: 'markov' }, cv), editor,
     h('div', { class: 'row', style: { 'margin-top': '6px' } },
-      h('button', { class: 'small', onclick: () => fill((i, j) => (j === (i + 1) % N ? 1 : 0)) }, 'Cycle'),
-      h('button', { class: 'small', onclick: () => fill((i, j) => mkDefaultMatrix(n)[i][j]) }, 'Melodic walk'),
+      h('button', { class: 'small', onclick: () => fill((i, j) => (down ? (i < n && j === i) || (i === n && j === 0) : j === (i + 1) % N) ? 1 : 0) }, down ? 'Diagonal' : 'Cycle'),
+      h('button', { class: 'small', onclick: () => fill((i, j) => (down ? mkDownMatrix(n) : mkDefaultMatrix(n))[i][j]) }, 'Melodic walk'),
+      down ? h('button', { class: 'small', title: 'From the top note down', onclick: () => fill((i, j) => (i < n && j === n - 1 - i) || (i === n && j === 0) ? 1 : 0) }, 'Reverse') : null,
       h('button', { class: 'small', onclick: () => fill((i, j) => (j === N - 1 ? 0.3 : 1)) }, 'Even'),
       h('button', { class: 'small', onclick: () => fill(() => (Math.random() < 0.3 ? Math.round(Math.random() * 100) / 100 : 0)) }, 'Random'),
-      h('button', { class: 'small ghost', onclick: () => fill((i, j) => (j === 0 ? 1 : 0)) }, 'Clear')),
+      h('button', { class: 'small ghost', onclick: () => fill((i, j) => (down ? (i === n && j === 0 ? 1 : 0) : j === 0 ? 1 : 0)) }, 'Clear')),
     h('div', { class: 'row', style: { 'margin-top': '6px' } }, h('span', { class: 'lbl' }, 'Fill'), fCount, h('span', { class: 'lbl' }, 'states from'), fRoot, fScale, fOct, h('button', { class: 'small primary', onclick: fillScale }, 'Fill')));
 }
 function euclid(t, p) {
@@ -8660,7 +8834,8 @@ function renderSound(m, t) {
       (() => { const on = Object.keys(g.nodes).find((k) => g.nodes[k].type === 'out'); if (!on) return null; const el = pctl(t, 'inst/' + on + '/vel', 'Velocity', { small: true }); if (!el) return null; el.title = 'How much note velocity sets the loudness: 0 = every note equally loud; velocity 0.8 always plays at the level set'; return [h('label', { class: 'lbl', title: el.title }, 'Velocity'), el]; })(),
       h('label', { class: 'row', style: { gap: '4px' }, title: 'Follow the song tuning (Menu › Scale & tuning)' }, h('input', { type: 'checkbox', checked: t.tuned, onchange: (e) => { t.tuned = e.target.checked; pushTrack(t, 'mix'); } }), 'Follows tuning')),
     h('p', { class: 'hint' }, 'Every knob of the sound is here. Open the patch to rewire the building blocks, for example to change an FM algorithm. Double-tap a knob to type a value or add it to a macro.'),
-    macroRow(t, g, 'inst/', { add: true, title: true })));
+    macroRow(t, g, 'inst/', { add: true, title: true }),
+    snapsBar(t, 'inst')));
   const rack = h('div', { class: 'rack' });
   for (const name in g.nodes) {
     const n = g.nodes[name], D = infoOf(n);
@@ -8673,6 +8848,162 @@ function renderSound(m, t) {
   m.append(rack);
 }
 
+// ---- snapshots of a sound or effect (engine.js normSnaps): named sets of its knob values to switch or morph between;
+// a scene can pick one per sound or effect (scenes[].snaps). Turning a knob changes the snapshot that is playing.
+function devObj(t, dev) { if (!t) return null; if (dev === 'inst') return t.inst || null; const a = dev.split('/'); return a[0] === 'fx' ? t.fx[+a[1]] || null : null; }
+// the knobs a snapshot keeps: every knob of the sound or effect (not those inside its sub-patches) and its macros
+function devKeys(t, dev) {
+  const d = devObj(t, dev); if (!d) return [];
+  const ks = [];
+  if (dev !== 'inst') for (const k in R.FX[d.type].params) if (!R.FX[d.type].params[k].type) ks.push(k);
+  for (const n in d.nodes || {}) { const P = infoOf(d.nodes[n]).params; for (const k in P) if (!P[k].type) ks.push(n + '/' + k); }
+  (d.macros || []).forEach((mc, j) => ks.push('macro/' + j));
+  return ks.filter((k) => paramRef(t, dev + '/' + k));
+}
+function snapsCapture(t, dev) { const v = {}; for (const k of devKeys(t, dev)) { const x = paramRef(t, dev + '/' + k).get(); if (x !== undefined) v[k] = typeof x === 'boolean' ? (x ? 1 : 0) : x; } return v; }
+function curSceneI() { return S.song.scenes.length ? clamp(S.st ? S.st.scene : 0, 0, S.song.scenes.length - 1) : -1; }
+// where the snapshot knob sits now: what the engine last played, else what this scene picks, else the device's own
+function snapsPos(t, dev) {
+  const dp = t.id + '/' + dev, d = devObj(t, dev); if (!d || !d.snaps) return 0;
+  if (S.snapPos && dp in S.snapPos) return S.snapPos[dp];
+  const sc = S.song.scenes[curSceneI()]; return sc && sc.snaps && sc.snaps[dp] !== undefined ? sc.snaps[dp] : d.snap || 0;
+}
+// picking a snapshot by hand: kept by the scene playing if that scene picks one for this device, else by the device
+function snapsChoose(t, dev, v) {
+  const dp = t.id + '/' + dev, d = devObj(t, dev); if (!d || !d.snaps) return;
+  v = clamp(+v || 0, 0, d.snaps.length - 1);
+  const sc = S.song.scenes[curSceneI()];
+  if (sc && sc.snaps && sc.snaps[dp] !== undefined) { sc.snaps[dp] = v; pushScenesSoon(); }
+  else { d.snap = v; snapsSend(t, dev); }
+}
+let scenesT = 0; function pushScenesSoon() { clearTimeout(scenesT); scenesT = setTimeout(pushScenes, 120); }
+// the knobs follow the snapshot knob (in the editor; the engine does the same on its side)
+function snapsApplyUI(t, dev, pos) {
+  const d = devObj(t, dev); if (!d || !d.snaps) return;
+  const dp = t.id + '/' + dev; (S.snapPos || (S.snapPos = {}))[dp] = pos;
+  for (const k of R._.snapKeys(d.snaps)) {
+    const r = paramRef(t, dev + '/' + k); if (!r) continue;
+    const v = R._.snapValue(d.snaps, pos, k, r.sp); if (v === undefined) continue;
+    r.set(r.sp.options && typeof v === 'number' ? r.sp.options[clamp(Math.round(v), 0, r.sp.options.length - 1)] : v);
+    refreshPath(dp + '/' + k);
+  }
+  refreshPath(dp + '/snap');
+  document.querySelectorAll('[data-snapdev="' + dp + '"]').forEach((b) => b.classList.toggle('on', Math.round(pos) === +b.dataset.i));
+}
+function snapsFollow(dp, pos) {
+  if (S.snapPos && S.snapPos[dp] === pos) return;
+  const a = dp.split('/'), t = findT(a[0]); if (!t) return;
+  snapsApplyUI(t, a.slice(1).join('/'), pos);
+}
+function snapsSend(t, dev) { const d = devObj(t, dev); send({ t: 'snaps', dev: t.id + '/' + dev, snaps: d && d.snaps ? clone(d.snaps) : null, snap: d ? d.snap || 0 : 0 }); save(); }
+// a knob moved by hand (not while recording): into the snapshot playing (the nearest one while morphing)
+function snapsStore(path, v) {
+  const a = String(path).split('/'), t = findT(a[0]); if (!t) return;
+  let dev, key;
+  if (a[1] === 'inst') { dev = 'inst'; key = a.slice(2).join('/'); } else if (a[1] === 'fx' && a.length >= 4) { dev = 'fx/' + a[2]; key = a.slice(3).join('/'); } else return;
+  const d = devObj(t, dev); if (!d || !d.snaps || !key || key === 'snap' || key.split('/').length > 2) return;
+  if (!paramRef(t, dev + '/' + key)) return;
+  const i = clamp(Math.round(snapsPos(t, dev)), 0, d.snaps.length - 1);
+  if (typeof v === 'boolean') v = v ? 1 : 0;
+  d.snaps[i].v[key] = v;
+  if (S.send) S.send({ t: 'snapkey', dev: t.id + '/' + dev, i, key, v });
+}
+function snapsName(d) { const used = new Set((d.snaps || []).map((x) => x.name)); for (let i = 0; i < 26; i++) { const n = String.fromCharCode(65 + i); if (!used.has(n)) return n; } return 'Snap ' + ((d.snaps || []).length + 1); }
+// a new snapshot from the knobs as they are, and it becomes the one playing
+function snapsNew(t, dev) {
+  const d = devObj(t, dev); if (!d) return; snap();
+  const first = !d.snaps || !d.snaps.length;
+  d.snaps = d.snaps || []; if (d.snaps.length >= 16) { toast('A sound or effect keeps up to 16 snapshots.'); return; }
+  d.snaps.push({ name: snapsName(d), v: snapsCapture(t, dev) });
+  const i = d.snaps.length - 1;
+  if (first) d.snap = 0;
+  snapsSend(t, dev);
+  const r = paramRef(t, dev + '/snap'); r.set(i); send({ t: 'p', path: t.id + '/' + dev + '/snap', v: i, norec: true });
+  render();
+  toast(first ? 'Snapshot A keeps the knobs as they are. Make another, change its knobs, then switch or morph between them.' : 'Snapshot ' + d.snaps[i].name + ': a copy of the knobs now. Turn knobs to change it.');
+}
+function snapsGo(t, dev, i) { const r = paramRef(t, dev + '/snap'); if (!r) return; r.set(i); send({ t: 'p', path: t.id + '/' + dev + '/snap', v: i }); save(); }
+// remove snapshot i: scenes that picked a later one keep it; scenes that picked this one go back to the device's own
+function snapsDelete(t, dev, i) {
+  const d = devObj(t, dev); if (!d || !d.snaps) return; snap();
+  const dp = t.id + '/' + dev;
+  d.snaps.splice(i, 1);
+  const fix = (v) => (v > i ? v - 1 : v === i ? undefined : v);
+  for (const sc of S.song.scenes) if (sc.snaps && dp in sc.snaps) { const v = d.snaps.length ? fix(Math.round(sc.snaps[dp])) : undefined; if (v === undefined) delete sc.snaps[dp]; else sc.snaps[dp] = v; if (!Object.keys(sc.snaps).length) delete sc.snaps; }
+  if (!d.snaps.length) { delete d.snaps; delete d.snap; if (S.snapPos) delete S.snapPos[dp]; }
+  else { d.snap = clamp(fix(Math.round(d.snap || 0)) ?? 0, 0, d.snaps.length - 1); if (S.snapPos) delete S.snapPos[dp]; }
+  snapsSend(t, dev); pushScenes();
+  if (d.snaps) snapsGo(t, dev, snapsPos(t, dev));
+}
+// which snapshot a scene plays for one device ('' = the device's own)
+function sceneSnapSel(t, dev, si, after) {
+  const d = devObj(t, dev), sc = S.song.scenes[si], dp = t.id + '/' + dev; if (!d || !d.snaps || !sc) return null;
+  const cur = sc.snaps && sc.snaps[dp] !== undefined ? String(Math.round(sc.snaps[dp])) : '';
+  return h('select', { 'aria-label': 'Snapshot in scene ' + sc.name, onchange: (e) => {
+    snap(); const v = e.target.value;
+    if (v === '') { if (sc.snaps) { delete sc.snaps[dp]; if (!Object.keys(sc.snaps).length) delete sc.snaps; } }
+    else (sc.snaps || (sc.snaps = {}))[dp] = +v;
+    pushScenes();
+    if (curSceneI() === si) { const p = v === '' ? d.snap || 0 : +v; snapsApplyUI(t, dev, p); send({ t: 'p', path: dp + '/snap', v: p, norec: true }); }
+    if (after) after();
+  } }, h('option', { value: '' }, 'Own (' + (d.snaps[Math.round(d.snap || 0)] || d.snaps[0]).name + ')'), d.snaps.map((x, j) => h('option', { value: String(j), selected: cur === String(j) }, x.name)));
+}
+function snapsDialog(t, dev) {
+  const d = devObj(t, dev); if (!d || !d.snaps) return;
+  dialog('Snapshots: ' + (dev === 'inst' ? t.name + ' sound' : (d.label || d.type)), (close) => {
+    const again = () => { close(); render(); snapsDialog(t, dev); };
+    const rows = d.snaps.map((x, i) => h('div', { class: 'row', style: { gap: '6px', 'margin-bottom': '6px' } },
+      h('input', { type: 'text', value: x.name, 'aria-label': 'Snapshot name', style: { width: '110px' }, onchange: (e) => { const nm = e.target.value.trim().slice(0, 24); if (!nm || d.snaps.some((y, j) => j !== i && y.name === nm)) { e.target.value = x.name; return; } snap(); x.name = nm; snapsSend(t, dev); render(); } }),
+      h('button', { class: 'small', onclick: () => { snapsGo(t, dev, i); } }, 'Play'),
+      h('button', { class: 'small', title: 'Keep the knobs as they are now in this snapshot', onclick: () => { snap(); x.v = snapsCapture(t, dev); snapsSend(t, dev); toast('Snapshot ' + x.name + ' updated'); } }, 'Store knobs'),
+      h('button', { class: 'small', onclick: () => { if (d.snaps.length >= 16) return; snap(); d.snaps.splice(i + 1, 0, { name: snapsName(d), v: clone(x.v) }); for (const sc of S.song.scenes) if (sc.snaps && sc.snaps[t.id + '/' + dev] > i) sc.snaps[t.id + '/' + dev]++; if ((d.snap || 0) > i) d.snap++; snapsSend(t, dev); pushScenes(); again(); } }, 'Duplicate'),
+      h('button', { class: 'small ghost', 'aria-label': 'Delete snapshot ' + x.name, onclick: () => { snapsDelete(t, dev, i); again(); } }, '✕')));
+    const sc = S.song.scenes.length ? h('div', null, h('h3', null, 'In each scene'),
+      h('p', { class: 'hint' }, '“Own” plays the snapshot the sound or effect is set to. Automating its Snapshot knob morphs within a scene.'),
+      S.song.scenes.map((x, i) => h('div', { class: 'row', style: { gap: '8px', 'margin-bottom': '4px' } }, h('span', { style: { 'min-width': '110px' } }, x.name), sceneSnapSel(t, dev, i)))) : null;
+    return h('div', null, h('p', { class: 'hint' }, 'Each snapshot keeps every knob of the ' + (dev === 'inst' ? 'sound' : 'effect') + '. Turning a knob changes the snapshot playing; the Snapshot knob morphs from one to the next.'), rows, sc);
+  });
+}
+// the snapshot strip on a sound or an effect
+function snapsBar(t, dev) {
+  const d = devObj(t, dev); if (!d) return null;
+  const dp = t.id + '/' + dev;
+  const lbl = h('span', { class: 'lbl', title: 'Snapshots keep sets of knob values to switch or morph between, and scenes can pick one each' }, 'Snapshots');
+  if (!d.snaps || !d.snaps.length) return h('div', { class: 'row snapbar' }, lbl, h('button', { class: 'small', 'aria-label': 'New snapshot', onclick: () => snapsNew(t, dev) }, '+ Snapshot'));
+  const cur = Math.round(snapsPos(t, dev));
+  const si = curSceneI(), sc = S.song.scenes[si];
+  return h('div', { class: 'row snapbar' }, lbl,
+    d.snaps.map((x, i) => h('button', { class: 'small snapb' + (cur === i ? ' on' : ''), 'data-snapdev': dp, 'data-i': i, 'aria-label': 'Snapshot ' + x.name, onclick: () => snapsGo(t, dev, i) }, x.name)),
+    h('button', { class: 'small ghost', 'aria-label': 'New snapshot', title: 'New snapshot from the knobs as they are', onclick: () => snapsNew(t, dev) }, '+'),
+    d.snaps.length > 1 ? h('label', { class: 'lbl', title: 'Turn to morph from one snapshot to the next (automate it for sweeps)' }, 'Morph') : null,
+    d.snaps.length > 1 ? pctl(t, dev + '/snap', 'Snapshot', { small: true }) : null,
+    sc ? h('label', { class: 'lbl', title: 'Which snapshot the scene ' + sc.name + ' plays' }, 'In ' + sc.name) : null,
+    sc ? sceneSnapSel(t, dev, si, () => render()) : null,
+    h('button', { class: 'small ghost', 'aria-label': 'Edit snapshots', onclick: () => snapsDialog(t, dev) }, 'Edit…'));
+}
+// in the arrangement: which snapshots a scene plays for one track's sound and effects
+function sceneSnapsDialog(t, si) {
+  const sc = S.song.scenes[si]; if (!sc) return;
+  const devs = (t.inst && t.inst.snaps ? ['inst'] : []).concat(t.fx.map((f, i) => (f.snaps ? 'fx/' + i : null)).filter(Boolean));
+  dialog(t.name + ' in ' + sc.name, (close) => h('div', null, h('p', { class: 'hint' }, 'The snapshot each part of ' + t.name + ' plays in this scene.'),
+    devs.map((dev) => h('div', { class: 'row', style: { gap: '8px', 'margin-bottom': '6px' } }, h('span', { style: { 'min-width': '120px' } }, dev === 'inst' ? 'Sound' : (devObj(t, dev).label || devObj(t, dev).type)), sceneSnapSel(t, dev, si, () => render())))));
+}
+function trackHasSnaps(t) { return !!((t.inst && t.inst.snaps) || t.fx.some((f) => f.snaps)); }
+function sceneSnapsLabel(t, sc) {
+  const out = []; const add = (dev, d) => { const v = sc.snaps && sc.snaps[t.id + '/' + dev]; if (v !== undefined && d.snaps[Math.round(v)]) out.push(d.snaps[Math.round(v)].name); };
+  if (t.inst && t.inst.snaps) add('inst', t.inst); t.fx.forEach((f, i) => { if (f.snaps) add('fx/' + i, f); });
+  return out.length ? out.join(' ') : 'own';
+}
+
+// effects moved or removed: the scenes' snapshot picks follow their effect (fn: old index -> new, -1 = gone)
+function fxSnapIdx(t, fn) {
+  const pre = t.id + '/fx/';
+  for (const sc of S.song.scenes) if (sc.snaps) {
+    const o = {}; for (const k in sc.snaps) { if (k.startsWith(pre) && /^\d+$/.test(k.slice(pre.length))) { const j = fn(+k.slice(pre.length)); if (j >= 0) o[pre + j] = sc.snaps[k]; } else o[k] = sc.snaps[k]; }
+    if (Object.keys(o).length) sc.snaps = o; else delete sc.snaps;
+  }
+  if (S.snapPos) for (const k in S.snapPos) if (k.startsWith(pre)) delete S.snapPos[k];
+}
 // ---- effects chain
 function renderFx(m, t) {
   const bus = isBus(t);
@@ -8699,17 +9030,18 @@ function renderFx(m, t) {
     const D = R.FX[f.type];
     const onB = h('button', { class: 'small' + (f.on ? ' on' : ''), 'aria-label': (f.on ? 'Bypass ' : 'Enable ') + f.type, onclick: () => { f.on = !f.on; onB.classList.toggle('on', f.on); onB.textContent = f.on ? 'On' : 'Off'; card.classList.toggle('off', !f.on); send({ t: 'p', path: `${t.id}/fx/${i}/on`, v: f.on }); save(); } }, f.on ? 'On' : 'Off');
     onB.dataset.path = `${t.id}/fx/${i}/on`; onB._show = (v) => { const on = v !== undefined ? !!v : f.on; onB.classList.toggle('on', on); onB.textContent = on ? 'On' : 'Off'; };
-    const mv = (d) => { snap(); const j = i + d; if (j < 0 || j >= t.fx.length) return; [t.fx[i], t.fx[j]] = [t.fx[j], t.fx[i]]; pushTrack(t, 'fx'); render(); };
+    const mv = (d) => { snap(); const j = i + d; if (j < 0 || j >= t.fx.length) return; [t.fx[i], t.fx[j]] = [t.fx[j], t.fx[i]]; fxSnapIdx(t, (k) => (k === i ? j : k === j ? i : k)); pushTrack(t, 'fx'); pushScenes(); render(); };
     const card = h('div', { class: 'mod fxc' + (f.on ? '' : ' off') },
       h('div', { class: 'mod-h' }, onB, h('b', { style: { flex: 1 } }, f.label || f.type),
         h('button', { class: 'small ghost', 'aria-label': 'Move up', onclick: () => mv(-1) }, '↑'), h('button', { class: 'small ghost', 'aria-label': 'Move down', onclick: () => mv(1) }, '↓'),
-        h('button', { class: 'small ghost', 'aria-label': 'Remove effect', onclick: () => { snap(); t.fx.splice(i, 1); pushTrack(t, 'fx'); render(); toast('Effect removed', { label: 'Undo', fn: undo }); } }, '✕')),
+        h('button', { class: 'small ghost', 'aria-label': 'Remove effect', onclick: () => { snap(); t.fx.splice(i, 1); fxSnapIdx(t, (k) => (k === i ? -1 : k > i ? k - 1 : k)); pushTrack(t, 'fx'); pushScenes(); render(); toast('Effect removed', { label: 'Undo', fn: undo }); } }, '✕')),
       h('div', { class: 'hint', style: { margin: '0 0 6px' } }, D.desc),
       h('div', { class: 'knobs' }, Object.keys(D.params).map((k) => pctl(t, `fx/${i}/${k}`, k)),
         // a patch that listens to another track (a vocoder's voice): pick that track right here
         f.type === 'graph' ? Object.keys(f.nodes).filter((nm) => f.nodes[nm].type === 'trackin').map((nm) => pctl(t, `fx/${i}/${nm}/src`, (nm === 'voice' ? 'Voice' : nm) + ' from', { after: () => render() })) : null,
         f.type === 'graph' ? macroRow(t, f, `fx/${i}/`, { add: true }) : null),
-      f.type === 'graph' && Object.values(f.nodes).some((n) => n.type === 'trackin' && !n.p.src) ? h('p', { class: 'hint' }, 'Pick the track to listen to (for a vocoder: the voice, which can be muted).') : null);
+      f.type === 'graph' && Object.values(f.nodes).some((n) => n.type === 'trackin' && !n.p.src) ? h('p', { class: 'hint' }, 'Pick the track to listen to (for a vocoder: the voice, which can be muted).') : null,
+      snapsBar(t, 'fx/' + i));
     if (f.type !== 'graph' && L.FXPATCH[f.type]) card.append(h('div', { class: 'row', style: { 'margin-top': '6px' } }, h('button', { class: 'small', title: 'See and change how it works: it becomes the same effect built from modules, with these knobs as macros', onclick: () => fxToPatchDialog(t, i) }, 'Open as patch')));
     if (f.type === 'graph') card.append(h('div', { class: 'row', style: { 'margin-top': '6px' } }, h('button', { class: 'primary', onclick: () => go({ v: 'graph', id: t.id, fx: i }) }, 'Open patch'), h('button', { class: 'small', onclick: () => saveEffect(f) }, 'Save to My effects')));
     list.append(card);
