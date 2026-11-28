@@ -399,6 +399,26 @@ select.kin-add { font-size: 11px; padding: 1px 4px; margin: 4px 0 2px -2px; max-
 .snapbar select { max-width: 130px; }
 .snapcell { display: block; margin: 3px auto 0; padding: 1px 5px; font-size: 11px; background: none; border: 1px dashed var(--line); color: var(--dim); border-radius: 6px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .snapcell:hover { color: var(--text); border-color: var(--accent); }
+/* beat starter */
+.beat .beatstyles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.beatbtn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 12px 12px 11px; text-align: left; background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r); min-height: 62px; }
+.beatbtn b { font-size: 15px; }
+.beatbtn span { font-size: 11px; color: var(--dim); }
+.beatbtn:hover { border-color: var(--accent); }
+.beatbtn.on { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.beatbtn:active { transform: translateY(1px); }
+.beat .beatdials { gap: 4px 10px; flex-wrap: wrap; align-items: flex-end; }
+.beat .beatdials label.lbl { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+.beat .beatopts { gap: 8px 14px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.beat .beatlock { gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+@media (max-width: 560px) { .beat .beatstyles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .beat .sec-h .hint { display: none; } }
+/* moving scenes in the arrangement */
+.arr .sgrip { background: none; border: 0; color: var(--dim); cursor: grab; padding: 4px 6px; font-size: 15px; line-height: 1; touch-action: none; vertical-align: middle; }
+.arr .sgrip:hover, .arr .sgrip:focus-visible { color: var(--accent); }
+.arr tr.dragging { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--panel2); cursor: grabbing; }
+.arr tr.dragging .sgrip { cursor: grabbing; color: var(--accent); }
 </style><style id="usercss"></style>
 </head><body>
 <header id="top"></header>
@@ -535,7 +555,7 @@ select.kin-add { font-size: 11px; padding: 1px 4px; margin: 4px 0 2px -2px; max-
 <h2>Modules (patch building blocks)</h2>
 <table><tr><th>type</th><th>what it does</th><th>inputs</th><th>outputs</th><th>params</th></tr><tr><td><b>note</b></td><td>The played note: pitch (octaves from C4), velocity 0..1, gate 0/1, trig (a one-sample pulse at each note), rand (a new random value −1..1 per note) and voice (which voice plays, 0, 1, 2…).</td><td>—</td><td>pitch, vel, gate, trig, rand, voice</td><td>—</td></tr><tr><td><b>osc</b></td><td>Oscillator. Follows the note pitch × ratio unless hz &gt; 0. pitch input = octaves, pm = phase mod (1 = one cycle), sync = hard sync (restarts on each rise), pw = pulse-width modulation.</td><td>pitch, pm, amp, sync, pw</td><td>out</td><td><code>wave</code> sine | tri | saw | square | pulse (default sine)<br><code>oct</code> -4…4 oct (default 0)<br><code>ratio</code> 0.125…16 × (default 1)<br><code>fine</code> -100…100 ct (default 0)<br><code>hz</code> 0…8000 Hz (default 0)<br><code>pw</code> 0.05…0.95 (default 0.5)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>op</b></td><td>FM operator: sine + its own ADSR + self-feedback. Chain ops into each other's pm input to build FM algorithms.</td><td>pm, pitch, amp</td><td>out</td><td><code>ratio</code> 0.125…32 × (default 1)<br><code>fine</code> -100…100 ct (default 0)<br><code>hz</code> 0…8000 Hz (default 0)<br><code>level</code> 0…1 (default 0.5)<br><code>a</code> 0.0005…10 s (default 0.002)<br><code>d</code> 0.001…10 s (default 0.4)<br><code>s</code> 0…1 (default 0.6)<br><code>r</code> 0.001…10 s (default 0.3)<br><code>fb</code> 0…1 (default 0)<br><code>vel</code> 0…1 (default 0.5)<br><code>mode</code> adsr | ad (default adsr)</td></tr><tr><td><b>noise</b></td><td>Noise generator (white, pink, brown).</td><td>amp</td><td>out</td><td><code>color</code> white | pink | brown (default white)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>env</b></td><td>Envelope triggered by each note. adsr follows the gate; ad ignores note length (drums). A trig input restarts it from inside the patch (its level is the gate).</td><td>trig</td><td>out</td><td><code>mode</code> adsr | ad (default adsr)<br><code>a</code> 0.0005…10 s (default 0.005)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0.5)<br><code>r</code> 0.001…10 s (default 0.3)<br><code>amt</code> -8…8 (default 1)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>lfo</b></td><td>Low frequency oscillator, bipolar ±amt. sync locks it to the tempo; retrig restarts it on each note.</td><td>rate</td><td>out</td><td><code>shape</code> sine | tri | saw | ramp | square | s&amp;h | smooth (default sine)<br><code>rate</code> 0.01…40 Hz (default 1)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>amt</code> -8…8 (default 1)<br><code>offset</code> -8…8 (default 0)<br><code>retrig</code> free | note (default free)</td></tr><tr><td><b>filter</b></td><td>State-variable filter. cut input = octaves of cutoff modulation. key = keyboard tracking. Built-in envelope: env = how many octaves each note opens the cutoff (negative closes it), shaped by a d s r; vel = velocity sensitivity.</td><td>in, cut</td><td>out</td><td><code>mode</code> lp | bp | hp | notch (default lp)<br><code>cut</code> 20…20000 Hz (default 1200)<br><code>res</code> 0…1 (default 0.2)<br><code>key</code> 0…1 (default 0)<br><code>drive</code> 1…10 (default 1)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>vca</b></td><td>Amplifier: out = in × cv × gain (cv counts as 1 when unpatched). Patch audio into cv for ring mod.</td><td>in, cv</td><td>out</td><td><code>gain</code> 0…4 (default 1)<br><code>bias</code> -1…1 (default 0)</td></tr><tr><td><b>mix</b></td><td>Four-input mixer.</td><td>a, b, c, d</td><td>out</td><td><code>a</code> 0…2 (default 1)<br><code>b</code> 0…2 (default 1)<br><code>c</code> 0…2 (default 1)<br><code>d</code> 0…2 (default 1)</td></tr><tr><td><b>shape</b></td><td>Waveshaper: tanh saturation, wavefolder, hard clip, sine shaper, bit crush.</td><td>in, drive</td><td>out</td><td><code>mode</code> tanh | fold | clip | sine | crush (default tanh)<br><code>drive</code> 1…40 (default 2)<br><code>bias</code> -1…1 (default 0)<br><code>level</code> 0…2 (default 0.8)</td></tr><tr><td><b>delay</b></td><td>Mono delay line with feedback and damping (build combs, flangers, Karplus strings). time input = octaves.</td><td>in, time</td><td>out</td><td><code>time</code> 0.1…2000 ms (default 250)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>track</code> off | on (default off)<br><code>fb</code> 0…0.999 (default 0.3)<br><code>damp</code> 100…20000 Hz (default 8000)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>follow</b></td><td>Envelope follower: turns the loudness of a signal into a control signal.</td><td>in</td><td>out</td><td><code>att</code> 0.0005…1 s (default 0.005)<br><code>rel</code> 0.001…4 s (default 0.2)<br><code>gain</code> 0…8 (default 1)</td></tr><tr><td><b>slew</b></td><td>Slew limiter / lag: smooths jumps (portamento for control signals).</td><td>in</td><td>out</td><td><code>time</code> 0.0005…5 s (default 0.05)</td></tr><tr><td><b>const</b></td><td>A constant value (offsets, fixed modulation).</td><td>—</td><td>out</td><td><code>value</code> -8…8 (default 1)</td></tr><tr><td><b>smpwave</b></td><td>Sample wavetable: a slice of a sample becomes the waveform of a tuned oscillator. pos picks where in the sample the slice sits (0–1), scan drifts it through the sample (slowly = melting, negative = backwards), size is how long the slice is (its timbre), smooth closes the loop seam. pm = phase modulation in cycles (FM), amp multiplies (AM), pos adds to the position.</td><td>pitch, pos, pm, amp</td><td>out</td><td><code>sample</code> sample name (e.g. @break)<br><code>pos</code> 0…1 (default 0.2)<br><code>scan</code> -0.25…0.25 (default 0.01)<br><code>size</code> 64…8192 smp (default 1024)<br><code>smooth</code> 0…0.5 (default 0.15)<br><code>retrig</code> free | note (default free)<br><code>oct</code> -4…4 oct (default 0)<br><code>fine</code> -100…100 ct (default 0)<br><code>hz</code> 0…8000 Hz (default 0)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>trackin</b></td><td>Track input: the sound of another track, after its effects and before its fader (so a muted track still comes through). In a custom effect it reads the same channel, in a sound both mixed. For vocoders, sidechains and cross-modulation; it arrives one sample late.</td><td>—</td><td>out</td><td><code>src</code> track id<br><code>gain</code> 0…4 (default 1)</td></tr><tr><td><b>sampler</b></td><td>Sample player. Plays the note relative to root, or picks a slice when slices &gt; 0 (chop: slice 0 = root note, next note = next slice). out = left/mono, r = right.</td><td>pitch, pos, amp</td><td>out, r</td><td><code>sample</code> sample name (e.g. @break)<br><code>root</code> 0…127 note (default 60)<br><code>tune</code> -24…24 st (default 0)<br><code>start</code> 0…1 (default 0)<br><code>end</code> 0…1 (default 1)<br><code>slices</code> 0…64 (default 0)<br><code>loop</code> off | fwd | pingpong (default off)<br><code>mode</code> gate | oneshot (default gate)<br><code>reverse</code> off | on (default off)<br><code>track</code> on | off (default on)<br><code>rel</code> 0.002…5 s (default 0.02)<br><code>level</code> 0…2 (default 0.9)</td></tr><tr><td><b>grain</b></td><td>Granular player: sprays short windowed grains from a sample. pos/size/density/spray shape the cloud; scan moves through the sample. out = left, r = right.</td><td>pitch, pos, amp</td><td>out, r</td><td><code>sample</code> sample name (e.g. @break)<br><code>pos</code> 0…1 (default 0.3)<br><code>scan</code> -2…2 (default 0)<br><code>spray</code> 0…1 (default 0.05)<br><code>size</code> 5…1000 ms (default 90)<br><code>density</code> 1…120 Hz (default 25)<br><code>root</code> 0…127 note (default 60)<br><code>track</code> on | off (default on)<br><code>tune</code> -24…24 st (default 0)<br><code>detune</code> 0…12 st (default 0)<br><code>reverse</code> 0…1 (default 0)<br><code>width</code> 0…1 (default 0.6)<br><code>level</code> 0…2 (default 0.8)</td></tr><tr><td><b>supersaw</b></td><td>Supersaw: up to 9 detuned saws (JP-8000 style), spread in stereo. out = left, r = right.</td><td>pitch</td><td>out, r</td><td><code>voices</code> 1…9 (default 7)<br><code>detune</code> 0…1 (default 0.35)<br><code>mix</code> 0…1 (default 0.7)<br><code>width</code> 0…1 (default 0.8)<br><code>oct</code> -4…4 oct (default 0)<br><code>fine</code> -100…100 ct (default 0)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>wavetable</b></td><td>Wavetable oscillator morphing sine → triangle → saw → square → narrow pulse with pos (input adds to it).</td><td>pitch, pos, pm</td><td>out</td><td><code>pos</code> 0…1 (default 0.5)<br><code>oct</code> -4…4 oct (default 0)<br><code>ratio</code> 0.125…16 × (default 1)<br><code>fine</code> -100…100 ct (default 0)<br><code>level</code> 0…1 (default 0.5)</td></tr><tr><td><b>dahdsr</b></td><td>Envelope with delay and hold stages; loop on makes it repeat like an LFO while the gate is held. trig input restarts it (and its level is the gate).</td><td>trig</td><td>out</td><td><code>delay</code> 0…4 s (default 0)<br><code>a</code> 0.0005…10 s (default 0.01)<br><code>hold</code> 0…4 s (default 0)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0.6)<br><code>r</code> 0.001…10 s (default 0.4)<br><code>loop</code> off | on (default off)<br><code>amt</code> -8…8 (default 1)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>random</b></td><td>Random source: smooth or stepped random, a random walk, or the chaotic logistic map. New values at rate/sync, or on each trig.</td><td>rate, trig</td><td>out</td><td><code>mode</code> smooth | step | walk | chaos (default smooth)<br><code>rate</code> 0.01…50 Hz (default 2)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>amt</code> -8…8 (default 1)<br><code>offset</code> -8…8 (default 0)<br><code>chaos</code> 3.4…4 (default 3.9)</td></tr><tr><td><b>stepseq</b></td><td>A little step sequencer inside the patch: up to 16 values, clocked by the tempo (sync), a rate, or a clock input. amt scales the output.</td><td>clock, reset</td><td>out, gate, trig</td><td><code>len</code> 1…16 (default 8)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 1/16)<br><code>rate</code> 0.1…50 Hz (default 4)<br><code>glide</code> 0…1 (default 0)<br><code>amt</code> -8…8 (default 1)<br><code>s1</code> -1…1 (default 0)<br><code>s2</code> -1…1 (default 0)<br><code>s3</code> -1…1 (default 0)<br><code>s4</code> -1…1 (default 0)<br><code>s5</code> -1…1 (default 0)<br><code>s6</code> -1…1 (default 0)<br><code>s7</code> -1…1 (default 0)<br><code>s8</code> -1…1 (default 0)<br><code>s9</code> -1…1 (default 0)<br><code>s10</code> -1…1 (default 0)<br><code>s11</code> -1…1 (default 0)<br><code>s12</code> -1…1 (default 0)<br><code>s13</code> -1…1 (default 0)<br><code>s14</code> -1…1 (default 0)<br><code>s15</code> -1…1 (default 0)<br><code>s16</code> -1…1 (default 0)</td></tr><tr><td><b>clock</b></td><td>Pulse clock locked to the tempo (sync) or free (rate). gate is a square wave, trig a one-sample pulse.</td><td>rate, reset</td><td>gate, trig</td><td><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 1/16)<br><code>rate</code> 0.1…50 Hz (default 4)<br><code>width</code> 0.01…0.99 (default 0.5)</td></tr><tr><td><b>divider</b></td><td>Clock divider: passes every Nth rising edge (offset shifts which one).</td><td>in, reset</td><td>gate, trig</td><td><code>div</code> 1…32 (default 2)<br><code>offset</code> 0…31 (default 0)</td></tr><tr><td><b>sh</b></td><td>Sample &amp; hold: grabs the input on each rising edge of trig (or at each new note when trig is not patched).</td><td>in, trig</td><td>out</td><td>—</td></tr><tr><td><b>scale</b></td><td>Attenuverter: out = in × gain + offset (negative gain inverts).</td><td>in</td><td>out</td><td><code>gain</code> -8…8 (default 1)<br><code>offset</code> -8…8 (default 0)</td></tr><tr><td><b>fn</b></td><td>One-input function: abs, half-rectify, invert, sign, square, square root, 2^x (octaves → ratio), log2, floor, fold into ±1, wrap into 0..1.</td><td>in</td><td>out</td><td><code>op</code> abs | half-rectify | invert | sign | square | sqrt | exp2 | log2 | floor | fold | wrap (default abs)</td></tr><tr><td><b>math</b></td><td>Two-input math: add, subtract, multiply, min, max, average, difference, divide. b is the knob when unpatched.</td><td>a, b</td><td>out</td><td><code>op</code> add | subtract | multiply | min | max | average | difference | divide (default add)<br><code>b</code> -8…8 (default 0)</td></tr><tr><td><b>compare</b></td><td>Comparator: gate is 1 while in is above the threshold (or the ref input), with hysteresis. trig pulses on each rise.</td><td>in, ref</td><td>gate, inv, trig</td><td><code>thresh</code> -8…8 (default 0)<br><code>hyst</code> 0…1 (default 0.01)</td></tr><tr><td><b>quant</b></td><td>Pitch quantiser: snaps a pitch signal (octaves) to a scale. "song" uses the song scale. absolute mode adds the note pitch first, so the result is in key whatever note plays.</td><td>in</td><td>out</td><td><code>scale</code> song | chromatic | major | minor | major pentatonic | minor pentatonic | dorian | phrygian | lydian | mixolydian | harmonic minor | whole tone | blues | fifths (default song)<br><code>root</code> 0…11 (default 0)<br><code>mode</code> absolute | relative (default absolute)</td></tr><tr><td><b>xfade</b></td><td>Crossfader between a and b; pos input adds to the knob. equal power keeps loudness steady.</td><td>a, b, pos</td><td>out</td><td><code>pos</code> 0…1 (default 0.5)<br><code>mode</code> linear | equal power (default linear)</td></tr><tr><td><b>ladder</b></td><td>Moog-style 4-pole ladder filter with saturating feedback: warm, squelchy, self-oscillates near res 1. Built-in envelope: env = octaves each note opens the cutoff, shaped by a d s r; vel = velocity sensitivity.</td><td>in, cut</td><td>out</td><td><code>mode</code> lp24 | lp12 | bp | hp (default lp24)<br><code>cut</code> 20…20000 Hz (default 800)<br><code>res</code> 0…1.1 (default 0.4)<br><code>drive</code> 1…10 (default 1.5)<br><code>key</code> 0…1 (default 0)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>formant</b></td><td>Vowel (formant) filter: three resonances morphing through a e i o u. shift moves all formants by octaves. Built-in envelope: env = octaves each note shifts the formants (a talking “wow”), shaped by a d s r.</td><td>in, vowel</td><td>out</td><td><code>vowel</code> 0…4 (default 0)<br><code>shift</code> -1…1 oct (default 0)<br><code>res</code> 0…1 (default 0.6)<br><code>mix</code> 0…1 (default 1)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>reson</b></td><td>Resonator bank: four tuned resonances (harmonic, bar, bell or glass ratios) that ring when struck. Feed it a short noise burst for mallets and bells.</td><td>in, pitch</td><td>out</td><td><code>tune</code> harmonic | bar | bell | glass (default harmonic)<br><code>decay</code> 0.02…10 s (default 1.2)<br><code>bright</code> 0…1 (default 0.5)<br><code>track</code> on | off (default on)<br><code>hz</code> 20…5000 Hz (default 220)<br><code>level</code> 0…2 (default 0.5)</td></tr><tr><td><b>onepole</b></td><td>Gentle one-pole low- or high-pass (6 dB/oct) tone control. cut input = octaves. Built-in envelope: env = octaves each note moves the cutoff, shaped by a d s r.</td><td>in, cut</td><td>out</td><td><code>mode</code> lp | hp (default lp)<br><code>cut</code> 20…20000 Hz (default 2000)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>apf</b></td><td>First-order all-pass: shifts phase around freq without changing level. Chain a few, sweep freq with an LFO and mix with the dry signal for a phaser.</td><td>in, freq</td><td>out</td><td><code>freq</code> 20…20000 Hz (default 1000)</td></tr><tr><td><b>diffuser</b></td><td>Schroeder all-pass diffuser (delay + feedback/feedforward): the building block of reverbs. Chain 3–6 with different times.</td><td>in, time</td><td>out</td><td><code>time</code> 0.5…100 ms (default 12)<br><code>g</code> -0.95…0.95 (default 0.6)</td></tr><tr><td><b>dcblock</b></td><td>Removes DC offset (very low frequencies), useful after asymmetric distortion or feedback.</td><td>in</td><td>out</td><td>—</td></tr><tr><td><b>eqband</b></td><td>One parametric EQ band (bell). freq input = octaves. Built-in envelope: env = octaves each note sweeps the band, shaped by a d s r.</td><td>in, freq</td><td>out</td><td><code>freq</code> 20…20000 Hz (default 1000)<br><code>gain</code> -24…24 dB (default 6)<br><code>q</code> 0.2…12 (default 1)<br><code>env</code> -8…8 oct (default 0)<br><code>a</code> 0.0005…10 s (default 0.003)<br><code>d</code> 0.001…10 s (default 0.3)<br><code>s</code> 0…1 (default 0)<br><code>r</code> 0.001…10 s (default 0.2)<br><code>vel</code> 0…1 (default 0)</td></tr><tr><td><b>crush</b></td><td>Bit depth and sample-rate reducer.</td><td>in</td><td>out</td><td><code>bits</code> 1…16 bit (default 8)<br><code>down</code> 1…64 × (default 4)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>comp</b></td><td>Compressor. Patch a signal into side to duck one sound with another (sidechain).</td><td>in, side</td><td>out, gr</td><td><code>thresh</code> -60…0 dB (default -18)<br><code>ratio</code> 1…20 :1 (default 4)<br><code>att</code> 0.1…100 ms (default 5)<br><code>rel</code> 10…2000 ms (default 120)<br><code>makeup</code> 0…24 dB (default 0)</td></tr><tr><td><b>gate</b></td><td>Noise gate: silences the signal below the threshold. A key input opens it from another signal (trance gate, gated reverb).</td><td>in, key</td><td>out</td><td><code>thresh</code> -80…0 dB (default -40)<br><code>att</code> 0.1…50 ms (default 1)<br><code>rel</code> 5…2000 ms (default 80)<br><code>floor</code> -80…0 dB (default -80)</td></tr><tr><td><b>pitchshift</b></td><td>Pitch shifter (two crossfading delay heads). semis input adds semitones. Put it in a delay feedback loop for shimmer.</td><td>in, semis</td><td>out</td><td><code>semis</code> -24…24 st (default 12)<br><code>window</code> 10…250 ms (default 70)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>freeze</b></td><td>Freeze / looper: while frozen (knob or a gate on freeze) it loops the last len ms; otherwise it passes the input.</td><td>in, freeze</td><td>out</td><td><code>freeze</code> off | on (default off)<br><code>len</code> 20…4000 ms (default 400)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>reverse</b></td><td>Reverse delay: plays the last len ms backwards, chunk by chunk, with smooth overlaps. fb feeds it back for washes.</td><td>in</td><td>out</td><td><code>len</code> 50…2000 ms (default 300)<br><code>fb</code> 0…0.9 (default 0)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>stereo</b></td><td>Stereo view inside custom effects (which run once per channel): mid = (this + other)/2, side = (this − other)/2, other channel input, other channel output (last sample), and side sign (+1 left, −1 right). mid + side × width = a stereo-width control.</td><td>—</td><td>mid, side, other, prev, sign</td><td>—</td></tr><tr><td><b>pan</b></td><td>Pan inside custom effects: turns this channel down as the signal moves to the other side (−1 left … +1 right). pan input adds to the knob.</td><td>in, pan</td><td>out</td><td><code>pan</code> -1…1 (default 0)</td></tr><tr><td><b>inlet</b></td><td>Sub-patch input: each inlet becomes an input socket on the sub-patch box, named after this module. value is used when nothing is plugged in from outside.</td><td>in</td><td>out</td><td><code>value</code> -10…10 (default 0)</td></tr><tr><td><b>outlet</b></td><td>Sub-patch output: each outlet becomes an output socket on the sub-patch box, named after this module.</td><td>in</td><td>out</td><td>—</td></tr><tr><td><b>sub</b></td><td>Sub-patch: a reusable patch from the song’s patch library, used like one module.</td><td>—</td><td>—</td><td>—</td></tr><tr><td><b>in</b></td><td>Effect input (only inside custom effect graphs).</td><td>—</td><td>out</td><td>—</td></tr><tr><td><b>out</b></td><td>Output of the graph. In an instrument it is the voice output (with pan). Patch a right channel into r for stereo. vel = how much the note velocity sets the loudness (0 = not at all; velocity 0.8 always plays at the level set, accents louder, ghost notes softer).</td><td>in, pan, r</td><td>—</td><td><code>level</code> 0…2 (default 0.8)<br><code>pan</code> -1…1 (default 0)<br><code>vel</code> 0…1 (default 0.7)</td></tr></table>
 <h2>Effects</h2>
-<table><tr><th>type</th><th>what it does</th><th>params</th></tr><tr><td><b>filter</b></td><td>Stereo filter with tempo-syncable LFO sweep and an envelope: env = octaves it opens (negative closes), triggered by this track’s notes (envsrc notes) or by the input level (follow = auto-wah), with att/dec times.</td><td><code>mode</code> lp | bp | hp | notch (default lp)<br><code>cut</code> 20…20000 Hz (default 2000)<br><code>res</code> 0…1 (default 0.2)<br><code>drive</code> 1…10 (default 1)<br><code>lfo</code> 0…6 oct (default 0)<br><code>rate</code> 0.02…20 Hz (default 0.25)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>env</code> -6…6 oct (default 0)<br><code>envsrc</code> notes | follow (default notes)<br><code>att</code> 0.5…500 ms (default 3)<br><code>dec</code> 10…4000 ms (default 250)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>drive</b></td><td>Saturation / distortion with tone control.</td><td><code>mode</code> tanh | tube | fold | clip (default tanh)<br><code>drive</code> 1…50 (default 2)<br><code>tone</code> 300…20000 Hz (default 9000)<br><code>out</code> 0…2 (default 0.7)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>crush</b></td><td>Bit crusher and sample-rate reducer.</td><td><code>bits</code> 1…16 bit (default 8)<br><code>down</code> 1…64 × (default 4)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>chorus</b></td><td>Stereo chorus / ensemble.</td><td><code>rate</code> 0.05…8 Hz (default 0.5)<br><code>depth</code> 0…1 (default 0.4)<br><code>delay</code> 2…30 ms (default 12)<br><code>mix</code> 0…1 (default 0.5)</td></tr><tr><td><b>delay</b></td><td>Tape-style stereo / ping-pong delay with filtered, saturating feedback (fb above 1 self-oscillates, dub style).</td><td><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 3/16)<br><code>time</code> 1…2000 ms (default 375)<br><code>fb</code> 0…1.2 (default 0.5)<br><code>mode</code> stereo | pingpong (default stereo)<br><code>damp</code> 200…20000 Hz (default 3500)<br><code>hp</code> 20…2000 Hz (default 150)<br><code>wobble</code> 0…1 (default 0.15)<br><code>spread</code> 0…1 (default 0.2)<br><code>mix</code> 0…1 (default 0.3)</td></tr><tr><td><b>reverb</b></td><td>8-line feedback-delay-network reverb with pre-delay, damping and modulation.</td><td><code>size</code> 0.2…2 (default 1)<br><code>decay</code> 0.2…30 s (default 3)<br><code>damp</code> 500…20000 Hz (default 6000)<br><code>pre</code> 0…250 ms (default 15)<br><code>mod</code> 0…1 (default 0.3)<br><code>width</code> 0…1 (default 1)<br><code>mix</code> 0…1 (default 0.3)</td></tr><tr><td><b>gigaverb</b></td><td>Big, smooth room-to-cathedral reverb after Juhana Sadeharju’s GigaVerb: four feedback delay lines sized by the room (metres) and reverb time, early reflections and a diffused tail, input bandwidth and damping. Set room large and time long for endless washes.</td><td><code>room</code> 1…300 m (default 75)<br><code>time</code> 0.1…360 s (default 11)<br><code>damp</code> 0…1 (default 0.7)<br><code>bw</code> 0…1 (default 0.5)<br><code>early</code> 0…1 (default 0.25)<br><code>tail</code> 0…1 (default 0.25)<br><code>spread</code> 0…100 (default 23)<br><code>mix</code> 0…1 (default 0.3)</td></tr><tr><td><b>multitap</b></td><td>Sixteen-tap rhythmic delay in the spirit of the Rainmaker: the taps fall in one of 16 grooves across the delay time, each with its own pitch shift, filter, level and pan, and the feedback (with its own pitch) spirals them. Stack pitches for chords, sweep the tap filters, freeze the buffer.</td><td><code>taps</code> 1…16 (default 8)<br><code>groove</code> even | swing | dotted | gallop | clave | pairs | stutter | euclid 5/8 | euclid 7/16 | speed up | slow down | bounce | rise | fibonacci | golden | scatter (default even)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 1 bar)<br><code>time</code> 10…8000 ms (default 1000)<br><code>pitch</code> -12…12 st (default 0)<br><code>pmode</code> step | all | alternate | chord | random (default step)<br><code>grain</code> 10…200 ms (default 70)<br><code>filter</code> off | lp | bp | hp (default off)<br><code>cut</code> 40…16000 Hz (default 2500)<br><code>res</code> 0…1 (default 0.3)<br><code>tilt</code> -1…1 (default 0)<br><code>decay</code> 0…1 (default 0.4)<br><code>spread</code> 0…1 (default 0.7)<br><code>fb</code> 0…0.98 (default 0.3)<br><code>fbpitch</code> -12…12 st (default 0)<br><code>tone</code> -1…1 (default -0.2)<br><code>freeze</code> off | on (default off)<br><code>mix</code> 0…1 (default 0.4)</td></tr><tr><td><b>comp</b></td><td>Stereo-linked compressor.</td><td><code>thresh</code> -60…0 dB (default -18)<br><code>ratio</code> 1…20 :1 (default 4)<br><code>att</code> 0.1…100 ms (default 5)<br><code>rel</code> 10…2000 ms (default 150)<br><code>makeup</code> 0…24 dB (default 3)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>limit</b></td><td>Brickwall-ish peak limiter for the master.</td><td><code>gain</code> 0…24 dB (default 0)<br><code>ceiling</code> -12…0 dB (default -0.5)<br><code>rel</code> 10…1000 ms (default 80)</td></tr><tr><td><b>eq</b></td><td>3-band EQ: low shelf, bell, high shelf.</td><td><code>low</code> -18…18 dB (default 0)<br><code>lowf</code> 30…600 Hz (default 120)<br><code>mid</code> -18…18 dB (default 0)<br><code>midf</code> 150…10000 Hz (default 1000)<br><code>q</code> 0.3…8 (default 0.8)<br><code>high</code> -18…18 dB (default 0)<br><code>highf</code> 1500…16000 Hz (default 7000)</td></tr><tr><td><b>duck</b></td><td>Sidechain-style ducking triggered by the notes of another track (src = track id). Classic pumping.</td><td><code>src</code> track id<br><code>amt</code> 0…1 (default 0.6)<br><code>att</code> 0.5…50 ms (default 3)<br><code>rel</code> 20…1000 ms (default 180)</td></tr><tr><td><b>graph</b></td><td>Custom effect: a patchable graph (in → … → out), run once per channel.</td><td><code>mix</code> 0…1 (default 1)</td></tr></table>
+<table><tr><th>type</th><th>what it does</th><th>params</th></tr><tr><td><b>filter</b></td><td>Stereo filter with tempo-syncable LFO sweep and an envelope: env = octaves it opens (negative closes), triggered by this track’s notes (envsrc notes) or by the input level (follow = auto-wah), with att/dec times.</td><td><code>mode</code> lp | bp | hp | notch (default lp)<br><code>cut</code> 20…20000 Hz (default 2000)<br><code>res</code> 0…1 (default 0.2)<br><code>drive</code> 1…10 (default 1)<br><code>lfo</code> 0…6 oct (default 0)<br><code>rate</code> 0.02…20 Hz (default 0.25)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default off)<br><code>env</code> -6…6 oct (default 0)<br><code>envsrc</code> notes | follow (default notes)<br><code>att</code> 0.5…500 ms (default 3)<br><code>dec</code> 10…4000 ms (default 250)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>drive</b></td><td>Saturation / distortion with tone control.</td><td><code>mode</code> tanh | tube | fold | clip (default tanh)<br><code>drive</code> 1…50 (default 2)<br><code>tone</code> 300…20000 Hz (default 9000)<br><code>out</code> 0…2 (default 0.7)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>crush</b></td><td>Bit crusher and sample-rate reducer.</td><td><code>bits</code> 1…16 bit (default 8)<br><code>down</code> 1…64 × (default 4)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>chorus</b></td><td>Stereo chorus / ensemble.</td><td><code>rate</code> 0.05…8 Hz (default 0.5)<br><code>depth</code> 0…1 (default 0.4)<br><code>delay</code> 2…30 ms (default 12)<br><code>mix</code> 0…1 (default 0.5)</td></tr><tr><td><b>delay</b></td><td>Tape-style stereo / ping-pong delay with filtered, saturating feedback (fb above 1 self-oscillates, dub style).</td><td><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 3/16)<br><code>time</code> 1…2000 ms (default 375)<br><code>fb</code> 0…1.2 (default 0.5)<br><code>mode</code> stereo | pingpong (default stereo)<br><code>damp</code> 200…20000 Hz (default 3500)<br><code>hp</code> 20…2000 Hz (default 150)<br><code>wobble</code> 0…1 (default 0.15)<br><code>spread</code> 0…1 (default 0.2)<br><code>mix</code> 0…1 (default 0.3)</td></tr><tr><td><b>reverb</b></td><td>8-line feedback-delay-network reverb with pre-delay, damping and modulation.</td><td><code>size</code> 0.2…2 (default 1)<br><code>decay</code> 0.2…30 s (default 3)<br><code>damp</code> 500…20000 Hz (default 6000)<br><code>pre</code> 0…250 ms (default 15)<br><code>mod</code> 0…1 (default 0.3)<br><code>width</code> 0…1 (default 1)<br><code>mix</code> 0…1 (default 0.3)</td></tr><tr><td><b>gigaverb</b></td><td>Big, smooth room-to-cathedral reverb after Juhana Sadeharju’s GigaVerb: four feedback delay lines sized by the room (metres) and reverb time, early reflections and a diffused tail, input bandwidth and damping. Set room large and time long for endless washes.</td><td><code>room</code> 1…300 m (default 75)<br><code>time</code> 0.1…360 s (default 11)<br><code>damp</code> 0…1 (default 0.7)<br><code>bw</code> 0…1 (default 0.5)<br><code>early</code> 0…1 (default 0.25)<br><code>tail</code> 0…1 (default 0.25)<br><code>spread</code> 0…100 (default 23)<br><code>mix</code> 0…1 (default 0.3)</td></tr><tr><td><b>multitap</b></td><td>Sixteen-tap rhythmic delay in the spirit of the Rainmaker: the taps fall in one of 16 grooves across the delay time, each with its own pitch shift, filter, level and pan, and the feedback (with its own pitch) spirals them. Stack pitches for chords, sweep the tap filters, freeze the buffer.</td><td><code>taps</code> 1…16 (default 8)<br><code>groove</code> even | swing | dotted | gallop | clave | pairs | stutter | euclid 5/8 | euclid 7/16 | speed up | slow down | bounce | rise | fibonacci | golden | scatter (default even)<br><code>sync</code> off | 1/32 | 1/16 | 1/8T | 1/8 | 3/16 | 1/4T | 1/4 | 3/8 | 1/2 | 1 bar | 2 bar | 4 bar | 8 bar (default 1 bar)<br><code>time</code> 10…8000 ms (default 1000)<br><code>pitch</code> -12…12 st (default 0)<br><code>pmode</code> step | all | alternate | chord | random (default step)<br><code>grain</code> 10…200 ms (default 70)<br><code>filter</code> off | lp | bp | hp (default off)<br><code>cut</code> 40…16000 Hz (default 2500)<br><code>res</code> 0…1 (default 0.3)<br><code>tilt</code> -1…1 (default 0)<br><code>decay</code> 0…1 (default 0.4)<br><code>spread</code> 0…1 (default 0.7)<br><code>fb</code> 0…0.98 (default 0.3)<br><code>fbpitch</code> -12…12 st (default 0)<br><code>tone</code> -1…1 (default -0.2)<br><code>freeze</code> off | on (default off)<br><code>mix</code> 0…1 (default 0.4)</td></tr><tr><td><b>comp</b></td><td>Stereo-linked compressor.</td><td><code>thresh</code> -60…0 dB (default -18)<br><code>ratio</code> 1…20 :1 (default 4)<br><code>att</code> 0.1…100 ms (default 5)<br><code>rel</code> 10…2000 ms (default 150)<br><code>makeup</code> 0…24 dB (default 3)<br><code>mix</code> 0…1 (default 1)</td></tr><tr><td><b>limit</b></td><td>Brickwall-ish peak limiter for the master.</td><td><code>gain</code> 0…24 dB (default 0)<br><code>ceiling</code> -12…0 dB (default -0.5)<br><code>rel</code> 10…1000 ms (default 80)</td></tr><tr><td><b>eq</b></td><td>3-band EQ: low shelf, bell, high shelf.</td><td><code>low</code> -18…18 dB (default 0)<br><code>lowf</code> 30…600 Hz (default 120)<br><code>mid</code> -18…18 dB (default 0)<br><code>midf</code> 150…10000 Hz (default 1000)<br><code>q</code> 0.3…8 (default 0.8)<br><code>high</code> -18…18 dB (default 0)<br><code>highf</code> 1500…16000 Hz (default 7000)</td></tr><tr><td><b>duck</b></td><td>Sidechain ducking: another track (src) pushes this one down, then it swells back up, the classic pump. notes mode: each note of src starts a duck (works even when src is muted or MIDI only). audio mode: follows the sound of src like a sidechain compressor, deeper for louder hits. amt = how deep (0.5 ≈ −6 dB, 0.75 ≈ −12 dB, 0.9 ≈ −20 dB, 1 = silence), att = how fast it goes down, hold = how long it stays down, rel = how long it takes to come all the way back (in a straight line in dB, so the swell is heard).</td><td><code>src</code> track id<br><code>amt</code> 0…1 (default 0.7)<br><code>att</code> 0.5…50 ms (default 3)<br><code>rel</code> 20…1000 ms (default 250)<br><code>hold</code> 0…500 ms (default 10)<br><code>mode</code> notes | audio (default notes)</td></tr><tr><td><b>graph</b></td><td>Custom effect: a patchable graph (in → … → out), run once per channel.</td><td><code>mix</code> 0…1 (default 1)</td></tr></table>
 <p>Every built-in effect except <code>duck</code> also exists as a patch made of modules, with its knobs as macros: the page’s <b>Open as patch</b> button swaps one for the other at the same settings. The page also offers <b>GigaVerb</b> (four delay lines in a Hadamard feedback network, with early reflections and a diffused tail; macros Room, Decay, Damping, Bandwidth, Early, Tail, Spread, Pre-delay) and a <b>Multitap</b> (8 delays, each pitch-shifted, filtered, levelled and panned, with pitched feedback and a freeze; macros Time, Pitch, Grain, Cutoff, Resonance, Decay, Spread, Feedback, FB pitch, Tone, Freeze) as patches; the effects <code>gigaverb</code> and <code>multitap</code> above are the same ideas in one box. Also as patches: <b>Tape delay</b> (wow, flutter, drift, saturation, hiss; macros Time, Sync, Feedback, Wow, Flutter, Tone, Drive, Hiss), <b>Multihead delay</b> (one tape, four heads at 1, 1.5, 2 and 3 × the time, switched by the macros Head 1–4) and a 12-band <b>Vocoder</b>: its <code>trackin</code> module named <code>voice</code> reads the voice from another track (set <code>"voice": {"type": "trackin", "src": "&lt;track id&gt;"}</code>; the voice track can be muted) and this track's sound is the carrier.</p>
 <p>Built-in custom-effect examples you can copy: <code>{"type":"graph","label":"Flanger (custom)","mix":0.6,"nodes":{"in":{"type":"in"},"lfo":{"type":"lfo","shape":"tri","rate":0.15,"amt":1.2},"comb":{"type":"delay","time":2.5,"fb":0.75,"damp":9000,"mix":0.5},"out":{"type":"out","level":1}},"wires":["in -&gt; comb","lfo -&gt; comb.time","comb -&gt; out"],"macros":[{"name":"Jet","value":0.5,"to":[{"node":"comb","param":"fb","min":0.3,"max":0.95},{"node":"lfo","param":"rate","min":0.05,"max":0.6}]}]}</code><br><code>{"type":"graph","label":"Tremolo (custom)","mix":1,"nodes":{"in":{"type":"in"},"lfo":{"type":"lfo","shape":"sine","sync":"1/8","amt":0.5,"offset":0.5},"vca":{"type":"vca"},"out":{"type":"out","level":1}},"wires":["in -&gt; vca","lfo -&gt; vca.cv","vca -&gt; out"]}</code><br><code>{"type":"graph","label":"Phaser (custom)","mix":1,"nodes":{"in":{"type":"in"},"lfo":{"type":"lfo","shape":"sine","rate":0.3,"amt":1.5},"a1":{"type":"apf","freq":400},"a2":{"type":"apf","freq":700},"a3":{"type":"apf","freq":1100},"a4":{"type":"apf","freq":1700},"fb":{"type":"scale","gain":0.5},"sum":{"type":"mix","a":1,"b":1,"c":0.6},"wet":{"type":"mix","a":0.6,"b":0.6},"out":{"type":"out","level":1}},"wires":["in -&gt; sum.a","fb -&gt; sum.c","sum -&gt; a1","a1 -&gt; a2","a2 -&gt; a3","a3 -&gt; a4","a4 -&gt; fb","lfo -&gt; a1.freq","lfo -&gt; a2.freq","lfo -&gt; a3.freq","lfo -&gt; a4.freq","in -&gt; wet.a","a4 -&gt; wet.b","wet -&gt; out"]}</code><br><code>{"type":"graph","label":"Shimmer reverb (custom)","mix":0.45,"nodes":{"in":{"type":"in"},"sum":{"type":"mix","a":1,"b":1},"d1":{"type":"diffuser","time":4.7,"g":0.7},"d2":{"type":"diffuser","time":11.3,"g":0.7},"d3":{"type":"diffuser","time":23.1,"g":0.65},"d4":{"type":"diffuser","time":41.9,"g":0.6},"tail":{"type":"delay","time":97,"fb":0.55,"damp":6000,"mix":1},"up":{"type":"pitchshift","semis":12,"window":90,"mix":1},"back":{"type":"scale","gain":0.4},"hp":{"type":"onepole","mode":"hp","cut":200},"out":{"type":"out","level":1}},"wires":["in -&gt; sum.a","sum -&gt; d1","d1 -&gt; d2","d2 -&gt; d3","d3 -&gt; d4","d4 -&gt; tail","tail -&gt; up","up -&gt; back","back -&gt; sum.b","tail -&gt; hp","hp -&gt; out"],"macros":[{"name":"Size","value":0.4,"to":[{"node":"tail","param":"time","min":40,"max":220},{"node":"tail","param":"fb","min":0.35,"max":0.8}]},{"name":"Shimmer","value":0.5,"to":[{"node":"back","param":"gain","min":0,"max":0.8}]},{"name":"Dark","value":0,"to":[{"node":"tail","param":"damp","min":9000,"max":1200}]}]}</code><br><code>{"type":"graph","label":"Tape delay (patch)","mix":0.35,"nodes":{"in":{"type":"in"},"drv":{"type":"shape","mode":"tanh","drive":1.6,"level":0.85},"d":{"type":"delay","time":360,"fb":0,"damp":20000,"mix":1},"wow":{"type":"lfo","shape":"sine","rate":0.55,"amt":0.004},"flut":{"type":"lfo","shape":"tri","rate":7,"amt":0.0012},"drift":{"type":"random","mode":"smooth","rate":0.6,"amt":0.003},"tone":{"type":"onepole","mode":"lp","cut":3500},"low":{"type":"onepole","mode":"hp","cut":110},"fb":{"type":"scale","gain":0.45},"sat":{"type":"shape","mode":"tanh","drive":1.4,"level":1},"hiss":{"type":"noise","color":"pink","level":0.004},"out":{"type":"out","level":1}},"wires":["in -&gt; drv","drv -&gt; d","wow -&gt; d.time","flut -&gt; d.time","drift -&gt; d.time","d -&gt; tone","tone -&gt; low","low -&gt; fb","fb -&gt; sat","sat -&gt; d","low -&gt; out","hiss -&gt; out"],"macros":[{"name":"Time","value":0.62,"to":[{"node":"d","param":"time","min":20,"max":1500}]},{"name":"Sync","value":0,"to":[{"node":"d","param":"sync","min":0,"max":13}]},{"name":"Feedback","value":0.43,"to":[{"node":"fb","param":"gain","min":0,"max":1.05}]},{"name":"Wow","value":0.2,"to":[{"node":"wow","param":"amt","min":0,"max":0.02},{"node":"drift","param":"amt","min":0,"max":0.012}]},{"name":"Flutter","value":0.2,"to":[{"node":"flut","param":"amt","min":0,"max":0.006}]},{"name":"Tone","value":0.5,"to":[{"node":"tone","param":"cut","min":800,"max":12000}]},{"name":"Drive","value":0.25,"to":[{"node":"drv","param":"drive","min":1,"max":8},{"node":"sat","param":"drive","min":1,"max":4}]},{"name":"Hiss","value":0.13,"to":[{"node":"hiss","param":"level","min":0,"max":0.03}]}]}</code><br><code>{"type":"graph","label":"Multihead delay (patch, 4 heads)","mix":0.35,"nodes":{"in":{"type":"in"},"drv":{"type":"shape","mode":"tanh","drive":1.5,"level":0.85},"wow":{"type":"lfo","shape":"sine","rate":0.5,"amt":0.003},"flut":{"type":"lfo","shape":"tri","rate":6.5,"amt":0.001},"tone":{"type":"onepole","mode":"lp","cut":3200},"low":{"type":"onepole","mode":"hp","cut":120},"fb":{"type":"scale","gain":0.3},"sat":{"type":"shape","mode":"tanh","drive":1.4,"level":1},"out":{"type":"out","level":0.9},"h0":{"type":"delay","time":120,"fb":0,"damp":20000,"mix":1},"g0":{"type":"vca","gain":1},"h1":{"type":"delay","time":180,"fb":0,"damp":20000,"mix":1},"g1":{"type":"vca","gain":1},"h2":{"type":"delay","time":240,"fb":0,"damp":20000,"mix":1},"g2":{"type":"vca","gain":1},"h3":{"type":"delay","time":360,"fb":0,"damp":20000,"mix":1},"g3":{"type":"vca","gain":1}},"wires":["in -&gt; drv","tone -&gt; low","low -&gt; fb","fb -&gt; sat","drv -&gt; h0","sat -&gt; h0","wow -&gt; h0.time","flut -&gt; h0.time","h0 -&gt; g0","g0 -&gt; out","g0 -&gt; tone","drv -&gt; h1","sat -&gt; h1","wow -&gt; h1.time","flut -&gt; h1.time","h1 -&gt; g1","g1 -&gt; out","g1 -&gt; tone","drv -&gt; h2","sat -&gt; h2","wow -&gt; h2.time","flut -&gt; h2.time","h2 -&gt; g2","g2 -&gt; out","g2 -&gt; tone","drv -&gt; h3","sat -&gt; h3","wow -&gt; h3.time","flut -&gt; h3.time","h3 -&gt; g3","g3 -&gt; out","g3 -&gt; tone"],"macros":[{"name":"Time","value":0.55,"to":[{"node":"h0","param":"time","min":20,"max":650},{"node":"h1","param":"time","min":30,"max":975},{"node":"h2","param":"time","min":40,"max":1300},{"node":"h3","param":"time","min":60,"max":1950}]},{"name":"Head 1","value":1,"to":[{"node":"g0","param":"gain","min":0,"max":1}]},{"name":"Head 2","value":0,"to":[{"node":"g1","param":"gain","min":0,"max":1}]},{"name":"Head 3","value":1,"to":[{"node":"g2","param":"gain","min":0,"max":1}]},{"name":"Head 4","value":0.6,"to":[{"node":"g3","param":"gain","min":0,"max":1}]},{"name":"Feedback","value":0.35,"to":[{"node":"fb","param":"gain","min":0,"max":0.85}]},{"name":"Wow","value":0.2,"to":[{"node":"wow","param":"amt","min":0,"max":0.015}]},{"name":"Flutter","value":0.2,"to":[{"node":"flut","param":"amt","min":0,"max":0.005}]},{"name":"Tone","value":0.45,"to":[{"node":"tone","param":"cut","min":700,"max":10000}]},{"name":"Drive","value":0.25,"to":[{"node":"drv","param":"drive","min":1,"max":8},{"node":"sat","param":"drive","min":1,"max":4}]}]}</code><br><code>{"type":"graph","label":"Freeze (custom)","mix":1,"nodes":{"in":{"type":"in"},"fz":{"type":"freeze","len":350},"out":{"type":"out","level":1}},"wires":["in -&gt; fz","fz -&gt; out"]}</code><br><code>{"type":"graph","label":"Reverse delay (custom)","mix":0.5,"nodes":{"in":{"type":"in"},"rev":{"type":"reverse","len":400,"fb":0.35,"mix":1},"out":{"type":"out","level":1}},"wires":["in -&gt; rev","rev -&gt; out"]}</code><br><code>{"type":"graph","label":"Stereo widener (custom)","mix":1,"nodes":{"st":{"type":"stereo"},"sum":{"type":"mix","a":1,"b":1.8},"out":{"type":"out","level":1}},"wires":["st.mid -&gt; sum.a","st.side -&gt; sum.b","sum -&gt; out"]}</code><br><code>{"type":"graph","label":"Trance gate (custom)","mix":1,"nodes":{"in":{"type":"in"},"seq":{"type":"stepseq","len":16,"sync":"1/16","amt":1,"s1":1,"s2":0,"s3":1,"s4":1,"s5":0,"s6":1,"s7":1,"s8":0,"s9":1,"s10":0,"s11":1,"s12":1,"s13":0,"s14":1,"s15":0,"s16":1},"smooth":{"type":"slew","time":0.004},"vca":{"type":"vca"},"out":{"type":"out","level":1}},"wires":["in -&gt; vca","seq -&gt; smooth","smooth -&gt; vca.cv","vca -&gt; out"]}</code><br><code>{"type":"graph","label":"Twin echoes (custom, sub-patches)","mix":0.4,"nodes":{"in":{"type":"in"},"e1":{"type":"sub","patch":"echo","time":375,"feedback":0.35,"damp":3500},"e2":{"type":"sub","patch":"echo","time":500,"feedback":0.3,"damp":2000,"lowcut":400},"sum":{"type":"mix","a":0.8,"b":0.6},"out":{"type":"out","level":1}},"wires":["in -&gt; e1.in","in -&gt; e2.in","e1.out -&gt; sum.a","e2.out -&gt; sum.b","sum -&gt; out"]}</code><br><code>{"type":"graph","label":"Ring mod (custom)","mix":0.5,"nodes":{"in":{"type":"in"},"osc":{"type":"osc","wave":"sine","hz":440,"level":1},"vca":{"type":"vca"},"out":{"type":"out","level":1}},"wires":["in -&gt; vca","osc -&gt; vca.cv","vca -&gt; out"]}</code></p>
 <p>Synced times (<code>sync</code>) take: <code>off</code> <code>1/32</code> <code>1/16</code> <code>1/8T</code> <code>1/8</code> <code>3/16</code> <code>1/4T</code> <code>1/4</code> <code>3/8</code> <code>1/2</code> <code>1 bar</code> <code>2 bar</code> <code>4 bar</code> <code>8 bar</code>. Wet effects use <code>mix</code>; on returns set <code>mix: 1</code>.</p>
@@ -1925,16 +1945,29 @@ function RigEngine() {
       },
     },
     duck: {
-      desc: 'Sidechain-style ducking triggered by the notes of another track (src = track id). Classic pumping.',
-      params: { src: { type: 'track', def: '' }, amt: P(0, 1, 0.6), att: P(0.5, 50, 3, 'exp', 'ms'), rel: P(20, 1000, 180, 'exp', 'ms') },
+      desc: 'Sidechain ducking: another track (src) pushes this one down, then it swells back up, the classic pump. notes mode: each note of src starts a duck (works even when src is muted or MIDI only). audio mode: follows the sound of src like a sidechain compressor, deeper for louder hits. amt = how deep (0.5 ≈ −6 dB, 0.75 ≈ −12 dB, 0.9 ≈ −20 dB, 1 = silence), att = how fast it goes down, hold = how long it stays down, rel = how long it takes to come all the way back (in a straight line in dB, so the swell is heard).',
+      params: { src: { type: 'track', def: '' }, amt: P(0, 1, 0.7), att: P(0.5, 50, 3, 'exp', 'ms'), rel: P(20, 1000, 250, 'exp', 'ms'), hold: P(0, 500, 10, 'lin', 'ms'), mode: O(['notes', 'audio']) },
       make() {
-        let seen = -1, env = 0, tgt = 0, g = 1;
+        // env: 0 = no ducking .. 1 = fully down; the gain is −depth·env dB
+        let seen = -1, env = 0, stage = 0, held = 0, det = 0, pk = 0;
         return (io, p, G) => {
-          const t = G.trigT[p.src];
-          if (t !== undefined && t !== seen) { seen = t; tgt = 1; }
-          if (tgt > 0) { env += (1 - env) * (1 - Math.exp(-1000 / (p.att * G.sr))); if (env > 0.98) tgt = 0; }
-          else env *= Math.exp(-4.6 * 1000 / (p.rel * G.sr));
-          g = 1 - p.amt * env;
+          const sr = G.sr, attN = Math.max(1, p.att * sr / 1000), relN = Math.max(1, p.rel * sr / 1000);
+          if (p.mode === 1) { // audio: the source's level, against its own recent peak
+            const t = G.trk && G.trk[p.src], x = t ? Math.max(Math.abs(t.tapL), Math.abs(t.tapR)) : 0;
+            pk = Math.max(x, pk * Math.exp(-1 / (2 * sr)));
+            if (x > det) det += (x - det) / attN; else det = Math.max(x, det - pk / relN); // up at the attack, back down in a line over the release
+            const goal = pk > 1e-5 ? Math.min(1, det / pk) : 0;
+            env = goal;
+          } else {
+            const t = G.trigT[p.src];
+            if (t !== undefined && t !== seen) { seen = t; stage = 1; }
+            if (stage === 1) { env += 1 / attN; if (env >= 1) { env = 1; stage = 2; held = p.hold * sr / 1000; } }
+            else if (stage === 2) { if (--held <= 0) stage = 3; }
+            else if (stage === 3) { env -= 1 / relN; if (env <= 0) { env = 0; stage = 0; } }
+          }
+          if (env <= 0) return;
+          const depth = p.amt >= 0.999 ? 80 : -20 * Math.log10(1 - p.amt); // amt as the gain at the bottom (0.6 → 0.4 ≈ −8 dB)
+          const g = Math.pow(10, -depth * env / 20);
           io.l *= g; io.r *= g;
         };
       },
@@ -3989,7 +4022,10 @@ function RigEngine() {
           if (m.bus.id === 'master') this.song.master = m.bus; else { const i = this.song.returns.findIndex((x) => x.id === m.bus.id); if (i >= 0) this.song.returns[i] = m.bus; }
           t.setFx(m.bus.fx); t.mix.vol = m.bus.vol; t.mix.pan = m.bus.pan; t.out = m.bus.out || (m.bus.id === 'master' ? 'hw:1' : 'master'); this.reroute(); break;
         }
-        case 'scenes': this.scenes = m.scenes; this.song.scenes = m.scenes; break;
+        // map: the scenes were reordered, map[old index] = new index, so the scene playing (and one queued) carry on
+        case 'scenes': this.scenes = m.scenes; this.song.scenes = m.scenes;
+          if (m.map) { if (m.map[this.scene] !== undefined) this.scene = m.map[this.scene]; if (this.pending >= 0 && m.map[this.pending] !== undefined) this.pending = m.map[this.pending]; }
+          break;
         // the editor changed a device's snapshots: {dev, snaps, snap}; or stored one knob into one: {dev, i, key, v}
         case 'snaps': { const d = this.snapDev(m.dev); if (!d) break; if (m.snaps && m.snaps.length) { d.snaps = m.snaps; d.snap = clamp(+m.snap || 0, 0, m.snaps.length - 1); } else { delete d.snaps; delete d.snap; delete this.snapPos[m.dev]; } break; }
         case 'snapkey': { const d = this.snapDev(m.dev), sn = d && d.snaps && d.snaps[m.i]; if (sn) sn.v[m.key] = m.v; break; }
@@ -5342,7 +5378,483 @@ const RigLib = (() => {
 })();
 
 </script>
-<script>const RIG_VERSION = '2026-11-25 20:35';</script>
+<script>// Beat starter: rolls a fresh drum beat in a style (techno, hip-hop, IDM, breaks): new sounds and new patterns every roll,
+// shaped by dials. AI guide: RigBeat.roll(style, opts, seed) returns {bpm, swing, bars, parts: [{role, track, pattern}]}
+// where track is raw song-format track JSON (no patterns) and pattern(note) gives the raw pattern for a track whose
+// default note is `note` (so a roll can be laid onto tracks the player already has: "keep my sounds").
+// opts (all 0..1): hits (fewer..more hits), tone (dark..bright), len (shorter..longer loops), gen (straight step
+// sequencers..generative ones: Markov, Turing, Euclid, cells, stochastic), swing (none..lots, scaled per style),
+// wild (classic..strange sounds and odd meters), mel (melody: 0 = every pitched part on one note, low = a step or two
+// now and then, high = wide, with octave leaps); low: techno low end 'random' | 'rumble' | 'bass' | 'both' | 'none';
+// key: 0-11 (C..B) or -1 = random; scale: a scale name, with scaleIv its semitones (from the page's scale library),
+// or 'random' (a scale that suits the style). The result carries key, scaleName and scaleIv.
+// The same style, opts and seed always give the same beat.
+const RigBeat = (() => {
+  const NN = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const nn = (m) => NN[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+  function midi(s) {
+    if (typeof s === 'number') return s;
+    const m = /^([A-Ga-g])(#|b)?(-?\d+)$/.exec(String(s || '').trim()); if (!m) return 36;
+    return NN.indexOf(m[1].toUpperCase()) + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (+m[3] + 1) * 12;
+  }
+  function mkRng(seed) {
+    let a = (seed >>> 0) || 1;
+    const f = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    f.f = (lo, hi) => lo + (hi - lo) * f();
+    f.i = (lo, hi) => Math.floor(lo + (hi - lo + 1) * f());
+    f.pick = (arr) => arr[Math.floor(f() * arr.length)];
+    f.c = (p) => f() < p;
+    f.w = (pairs) => { let tot = 0; for (const p of pairs) tot += Math.max(0, p[1]); let k = f() * tot; for (const p of pairs) { k -= Math.max(0, p[1]); if (k < 0) return p[0]; } return pairs[pairs.length - 1][0]; };
+    f.shuffle = (arr) => { const a2 = arr.slice(); for (let i = a2.length - 1; i > 0; i--) { const j = Math.floor(f() * (i + 1)); [a2[i], a2[j]] = [a2[j], a2[i]]; } return a2; };
+    return f;
+  }
+  const rd = (x, d = 3) => Math.round(x * Math.pow(10, d)) / Math.pow(10, d);
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const steps = (arr) => arr.map((x) => x || '.').join(' ');
+  const SC = { minor: [0, 2, 3, 5, 7, 8, 10], pent: [0, 3, 5, 7, 10], phryg: [0, 1, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10] };
+  const STYLES = {
+    techno: { label: 'Techno', bpm: [124, 136] },
+    hiphop: { label: 'Hip-hop', bpm: [80, 96] },
+    idm: { label: 'IDM', bpm: [96, 168] },
+    breaks: { label: 'Breaks', bpm: [128, 176] },
+  };
+  // the roles a beat is made of, and how a track's name tells its role (for laying a roll onto the player's own tracks)
+  const ROLES = ['kick', 'rumble', 'bass', 'snare', 'hats', 'open', 'perc', 'break', 'blips'];
+  const ROLE_NAMES = { kick: 'Kick', rumble: 'Rumble', bass: 'Bass', snare: 'Snare', hats: 'Hats', open: 'Open hat', perc: 'Perc', break: 'Break', blips: 'Blips' };
+  function roleOf(name) {
+    const s = String(name || '').toLowerCase();
+    if (/rumble/.test(s)) return 'rumble';
+    if (/kick|\bbd\b|bassdrum/.test(s)) return 'kick';
+    if (/break|chop|amen/.test(s)) return 'break';
+    if (/open|\boh\b/.test(s)) return 'open';
+    if (/hat|\bhh\b|ride|shaker/.test(s)) return 'hats';
+    if (/snare|clap|\bsd\b/.test(s)) return 'snare';
+    if (/blip/.test(s)) return 'blips';
+    if (/perc|rim|tom|conga|bongo|cowbell|wood/.test(s)) return 'perc';
+    if (/bass|sub|reese|808/.test(s)) return 'bass';
+    return null;
+  }
+
+  // ---------------------------------------------------------------- sounds: every roll designs them afresh
+  // o.tone 0 dark .. 1 bright; o.wild 0 classic .. 1 strange
+  function kickSound(r, o, style) {
+    const dec = { techno: [0.26, 0.55], hiphop: [0.3, 0.75], idm: [0.07, 0.4], breaks: [0.18, 0.4] }[style];
+    const boom = style === 'hiphop' && r.c(0.35); // a long 808-style boom
+    const t = o.tone, w = o.wild;
+    return { kind: 'drum', poly: 1, note: r.pick(style === 'hiphop' ? ['D1', 'E1', 'F1', 'G1'] : ['E1', 'F1', 'F#1', 'G1', 'A1']), vol: -4,
+      inst: { nodes: {
+        pe: { type: 'env', mode: 'ad', a: 0.0005, d: rd(boom ? r.f(0.03, 0.06) : r.f(0.02, 0.08)), amt: rd(r.f(2, 4.2) + w * r.f(0, 2.5)) },
+        body: { type: 'osc', wave: r.c(w * 0.45) ? 'tri' : 'sine', level: 1 },
+        ae: { type: 'env', mode: 'ad', a: 0.0005, d: rd(boom ? r.f(0.7, 1.3) : r.f(dec[0], dec[1])), amt: 1, vel: 0.5 },
+        vca: { type: 'vca' },
+        cn: { type: 'noise', color: r.pick(['white', 'pink']), level: rd(r.f(0.2, 0.6) * (0.25 + t)) },
+        cf: { type: 'filter', mode: 'hp', cut: Math.round(1500 + t * 5000 + r.f(0, 1500)), res: 0.1 },
+        ce: { type: 'env', mode: 'ad', a: 0.0005, d: rd(r.f(0.003, 0.014), 4), amt: 1 },
+        cv: { type: 'vca' },
+        mix: { type: 'mix', a: 1, b: rd(r.f(0.15, 0.5) * (0.3 + t)) },
+        sat: { type: 'shape', mode: r.c(w * 0.3) ? 'fold' : 'tanh', drive: rd(r.f(1.2, 2.4) + (style === 'techno' ? r.f(0, 2) : 0) + w * r.f(0, 3)), level: 0.85 },
+        lp: { type: 'onepole', mode: 'lp', cut: Math.round(1200 + t * t * 12000 + r.f(0, 800)) },
+        out: { type: 'out', level: 0.9 } },
+      wires: ['pe -> body.pitch', 'body -> vca', 'ae -> vca.cv', 'vca -> mix.a', 'cn -> cf', 'cf -> cv', 'ce -> cv.cv', 'cv -> mix.b', 'mix -> sat', 'sat -> lp', 'lp -> out'] } };
+  }
+  function snareSound(r, o, style) {
+    const t = o.tone, w = o.wild, clap = style === 'techno' ? r.c(0.75) : style === 'hiphop' ? r.c(0.3) : r.c(0.35);
+    if (clap) return { name: 'Clap', kind: 'drum', poly: 2, note: 'D#2', vol: -3, sends: { A: rd(r.f(0.08, 0.3)) },
+      inst: { nodes: {
+        noise: { type: 'noise', color: 'white', level: 0.9 },
+        bp: { type: 'filter', mode: 'bp', cut: Math.round(r.f(800, 1700) * (0.65 + t * 0.9)), res: rd(r.f(0.3, 0.6)) },
+        burst: { type: 'lfo', shape: 'saw', rate: Math.round(r.f(70, 130)), amt: 0.5, offset: 0.5, retrig: 'note' },
+        env: { type: 'env', mode: 'ad', d: rd(r.f(0.12, 0.32) + w * 0.2), amt: 1, vel: 0.4 },
+        gate: { type: 'vca' }, vca: { type: 'vca' },
+        out: { type: 'out', level: 1 } },
+      wires: ['noise -> bp', 'bp -> gate', 'burst -> gate.cv', 'gate -> vca', 'env -> vca.cv', 'vca -> out'] } };
+    return { name: 'Snare', kind: 'drum', poly: 2, note: 'D2', vol: -7, sends: { A: rd(r.f(0.05, 0.25)) },
+      inst: { nodes: {
+        noise: { type: 'noise', color: r.c(0.7) ? 'white' : 'pink', level: 0.8 },
+        bp: { type: 'filter', mode: r.c(0.6) ? 'bp' : 'hp', cut: Math.round(r.f(1300, 3200) * (0.6 + t * 0.9)), res: rd(r.f(0.15, 0.45)) },
+        nEnv: { type: 'env', mode: 'ad', d: rd(r.f(0.09, 0.24) + (style === 'hiphop' ? 0.05 : 0)), amt: 1, vel: 0.5 },
+        nVca: { type: 'vca' },
+        tone: { type: 'osc', wave: r.c(0.7) ? 'tri' : 'sine', hz: Math.round(r.f(150, 260) * (1 + w * r.f(-0.3, 0.6))), level: 0.7 },
+        tpe: { type: 'env', mode: 'ad', a: 0.0005, d: 0.02, amt: rd(r.f(0.2, 1.2)) },
+        tEnv: { type: 'env', mode: 'ad', d: rd(r.f(0.04, 0.11)), amt: 1 },
+        tVca: { type: 'vca' },
+        mix: { type: 'mix', a: 1, b: rd(r.f(0.5, 1)) },
+        sat: { type: 'shape', mode: 'tanh', drive: rd(1.2 + w * 4 + r.f(0, 1)), level: 0.8 },
+        lp: { type: 'onepole', mode: 'lp', cut: Math.round(2500 + t * 14000) },
+        out: { type: 'out', level: 0.8 } },
+      wires: ['noise -> bp', 'bp -> nVca', 'nEnv -> nVca.cv', 'tpe -> tone.pitch', 'tone -> tVca', 'tEnv -> tVca.cv', 'nVca -> mix.a', 'tVca -> mix.b', 'mix -> sat', 'sat -> lp', 'lp -> out'] } };
+  }
+  function hatSound(r, o, open, style) {
+    const lift = style === 'hiphop' || style === 'idm' ? 5 : style === 'breaks' ? 2 : 0;
+    const t = o.tone, w = o.wild, metal = r.c(0.45);
+    const dec = open ? r.f(0.16, 0.45) : r.f(0.02, 0.07) + w * 0.04;
+    const cut = Math.round(clamp(r.f(5000, 8500) * (0.55 + t * 0.75), 2500, 16000));
+    if (metal) { // 808-style: square waves at inharmonic ratios
+      const base = r.f(180, 260) * (1 + w * r.f(-0.3, 0.8)), rat = r.pick([[1, 1.47, 1.8, 2.54], [1, 1.34, 1.73, 2.13], [1, 1.5, 1.62, 2.4]]);
+      const nodes = { mix: { type: 'mix', a: 0.5, b: 0.5, c: 0.5, d: 0.5 }, bp: { type: 'filter', mode: 'bp', cut: Math.round(cut * 1.2), res: 0.3 }, hp: { type: 'filter', mode: 'hp', cut, res: rd(r.f(0.1, 0.35)) },
+        env: { type: 'env', mode: 'ad', a: 0.0005, d: rd(dec), amt: 1, vel: 0.7 }, vca: { type: 'vca' }, out: { type: 'out', level: 0.55 } };
+      const wires = ['mix -> bp', 'bp -> hp', 'hp -> vca', 'env -> vca.cv', 'vca -> out'];
+      rat.forEach((k, i) => { nodes['o' + i] = { type: 'osc', wave: 'square', hz: Math.round(base * k), level: 0.5 }; wires.push(`o${i} -> mix.${'abcd'[i]}`); });
+      return { kind: 'drum', poly: 2, note: open ? 'A#2' : 'F#2', vol: (open ? -14 : -12) + lift, inst: { nodes, wires } };
+    }
+    return { kind: 'drum', poly: 2, note: open ? 'A#2' : 'F#2', vol: (open ? -14 : -12) + lift,
+      inst: { nodes: {
+        noise: { type: 'noise', color: 'white', level: 0.7 },
+        hp: { type: 'filter', mode: 'hp', cut, res: rd(r.f(0.1, 0.4)) },
+        pk: { type: 'eqband', freq: Math.round(cut * r.f(1.1, 1.6)), gain: rd(r.f(0, 8) * t), q: 2 },
+        env: { type: 'env', mode: 'ad', a: 0.0005, d: rd(dec), amt: 1, vel: 0.7 },
+        vca: { type: 'vca' },
+        out: { type: 'out', level: 0.6 } },
+      wires: ['noise -> hp', 'hp -> pk', 'pk -> vca', 'env -> vca.cv', 'vca -> out'] } };
+  }
+  function percSound(r, o) {
+    const t = o.tone, w = o.wild, kind = r.w([['fm', 3], ['reson', 2], ['tom', 1.5]]);
+    const base = { kind: 'drum', poly: 3, vol: -13, sends: { A: rd(r.f(0.1, 0.3)), B: rd(r.c(0.5) ? r.f(0.1, 0.35) : 0) } };
+    if (kind === 'fm') return Object.assign(base, { note: r.pick(['A4', 'C5', 'E4', 'G4']), inst: { nodes: {
+      mod: { type: 'op', ratio: rd(r.pick([1.41, 2.76, 3.51, 5.19, 7.13]) + w * r.f(0, 3), 2), level: rd(r.f(0.3, 0.7) * (0.5 + t)), mode: 'ad', d: rd(r.f(0.02, 0.07)) },
+      car: { type: 'op', ratio: 1, level: 0.8, mode: 'ad', d: rd(r.f(0.05, 0.18) + w * 0.15), vel: 0.8 },
+      out: { type: 'out', level: 0.6 } }, wires: ['mod -> car.pm', 'car -> out'] } });
+    if (kind === 'reson') return Object.assign(base, { note: r.pick(['C4', 'D4', 'G4', 'A4']), inst: { nodes: {
+      n: { type: 'noise', color: 'white', level: 1 },
+      e: { type: 'env', mode: 'ad', a: 0.0005, d: 0.004, amt: 1 }, v: { type: 'vca' },
+      rs: { type: 'reson', tune: r.pick(['bar', 'bell', 'glass', 'harmonic']), decay: rd(r.f(0.08, 0.5) + w * 0.6), bright: rd(0.2 + t * 0.7), track: 'on', level: 0.6 },
+      out: { type: 'out', level: 0.6 } }, wires: ['n -> v', 'e -> v.cv', 'v -> rs', 'rs -> out'] } });
+    return Object.assign(base, { note: r.pick(['C3', 'E3', 'G3']), inst: { nodes: {
+      pe: { type: 'env', mode: 'ad', a: 0.0005, d: rd(r.f(0.03, 0.08)), amt: rd(r.f(0.8, 2)) },
+      osc: { type: 'osc', wave: 'sine', level: 1 }, e: { type: 'env', mode: 'ad', d: rd(r.f(0.12, 0.35)), amt: 1, vel: 0.6 }, v: { type: 'vca' },
+      sat: { type: 'shape', mode: 'tanh', drive: rd(1.5 + w * 3), level: 0.8 }, out: { type: 'out', level: 0.7 } },
+      wires: ['pe -> osc.pitch', 'osc -> v', 'e -> v.cv', 'v -> sat', 'sat -> out'] } });
+  }
+  function bassSound(r, o, style) {
+    const t = o.tone, w = o.wild;
+    if (style === 'techno') return { kind: 'synth', poly: 1, glide: 0, vol: -8, fx: [{ type: 'duck', src: 'kick', amt: rd(r.f(0.5, 0.8)), rel: Math.round(r.f(120, 220)) }],
+      inst: { nodes: {
+        osc: { type: 'osc', wave: r.pick(['saw', 'square', 'saw']), level: 0.8 },
+        sub: { type: 'osc', wave: 'sine', oct: -1, level: rd(r.f(0.2, 0.5)) },
+        mix: { type: 'mix' },
+        f: { type: 'ladder', mode: 'lp24', cut: Math.round(r.f(110, 260) * (0.7 + t)), res: rd(r.f(0.2, 0.6) + w * 0.3), drive: rd(r.f(1.5, 3)), env: rd(r.f(1, 2.8)), d: rd(r.f(0.06, 0.16)), s: 0, vel: 0.3 },
+        e: { type: 'env', mode: 'adsr', a: 0.002, d: rd(r.f(0.08, 0.18)), s: 0.1, r: 0.04 }, v: { type: 'vca' },
+        sat: { type: 'shape', mode: 'tanh', drive: rd(r.f(1.5, 3) + w * 3), level: 0.8 }, out: { type: 'out', level: 0.8 } },
+      wires: ['osc -> mix.a', 'sub -> mix.b', 'mix -> f', 'f -> v', 'e -> v.cv', 'v -> sat', 'sat -> out'] } };
+    if (style === 'hiphop') return { kind: 'synth', poly: 1, glide: rd(r.f(0.02, 0.08)), vol: -9,
+      inst: { nodes: {
+        osc: { type: 'osc', wave: 'sine', level: 0.9 }, h: { type: 'osc', wave: r.pick(['tri', 'saw']), oct: 1, level: rd(r.f(0.05, 0.2) * (0.4 + t)) },
+        mix: { type: 'mix' }, sat: { type: 'shape', mode: 'tanh', drive: rd(r.f(1.2, 2.5) + w * 2), level: 1 },
+        e: { type: 'env', mode: 'adsr', a: 0.004, d: rd(r.f(0.25, 0.6)), s: rd(r.f(0.5, 0.85)), r: rd(r.f(0.06, 0.2)) }, v: { type: 'vca' },
+        out: { type: 'out', level: 0.85 } },
+      wires: ['osc -> mix.a', 'h -> mix.b', 'mix -> sat', 'sat -> v', 'e -> v.cv', 'v -> out'] } };
+    if (style === 'idm') return { kind: 'synth', poly: 1, glide: rd(r.c(0.4) ? r.f(0.02, 0.1) : 0), vol: -9,
+      inst: { nodes: {
+        mod: { type: 'op', ratio: rd(r.pick([0.5, 1, 1, 2, 3]) + (r.c(w) ? r.f(0, 0.5) : 0), 2), level: rd(r.f(0.25, 0.6) * (0.5 + t)), fb: rd(r.f(0, 0.5)), a: 0.001, d: rd(r.f(0.05, 0.25)), s: rd(r.f(0, 0.3)), r: 0.06, vel: 0.7 },
+        car: { type: 'op', ratio: 0.5, level: 0.9, a: 0.001, d: rd(r.f(0.12, 0.4)), s: rd(r.f(0.3, 0.8)), r: 0.06, vel: 0.3 },
+        out: { type: 'out', level: 0.8 } }, wires: ['mod -> car.pm', 'car -> out'] } };
+    // breaks: a reese, two detuned saws through a ladder
+    const det = r.f(6, 18);
+    return { kind: 'synth', poly: 1, glide: rd(r.f(0, 0.06)), vol: -9,
+      inst: { nodes: {
+        a: { type: 'osc', wave: 'saw', fine: rd(-det, 1), level: 0.5 }, b: { type: 'osc', wave: 'saw', fine: rd(det, 1), level: 0.5 },
+        s: { type: 'osc', wave: 'sine', oct: -1, level: 0.5 }, mix: { type: 'mix' },
+        f: { type: 'ladder', mode: 'lp24', cut: Math.round(r.f(250, 700) * (0.6 + t)), res: rd(r.f(0.2, 0.5)), drive: rd(r.f(1.5, 3) + w * 3) },
+        e: { type: 'env', mode: 'adsr', a: 0.01, d: 0.3, s: 0.9, r: 0.1 }, v: { type: 'vca' }, out: { type: 'out', level: 0.7 } },
+      wires: ['a -> mix.a', 'b -> mix.b', 's -> mix.c', 'mix -> f', 'f -> v', 'e -> v.cv', 'v -> out'] } };
+  }
+  // techno rumble: a kick-like thump drowned in a long reverb, filtered dark, driven and ducked by the kick
+  function rumbleSound(r, o) {
+    const t = o.tone, w = o.wild;
+    return { kind: 'drum', poly: 2, note: r.pick(['E1', 'F1', 'G1', 'A1']), vol: -11,
+      inst: { nodes: {
+        pe: { type: 'env', mode: 'ad', a: 0.0005, d: rd(r.f(0.03, 0.07)), amt: rd(r.f(1.5, 3)) },
+        o: { type: 'osc', wave: 'sine', level: 1 }, e: { type: 'env', mode: 'ad', d: rd(r.f(0.2, 0.45)), amt: 1 }, v: { type: 'vca' },
+        out: { type: 'out', level: 0.9 } },
+      wires: ['pe -> o.pitch', 'o -> v', 'e -> v.cv', 'v -> out'] },
+      fx: [{ type: 'reverb', size: rd(r.f(1.1, 1.9)), decay: rd(r.f(2.5, 7) + w * 5), damp: Math.round(r.f(1200, 3500)), pre: Math.round(r.f(0, 40)), mod: 0.2, width: rd(r.f(0.3, 0.8)), mix: 1 },
+        { type: 'filter', mode: 'lp', cut: Math.round(r.f(90, 200) * (0.7 + t * 0.8)), res: rd(r.f(0.15, 0.45)), drive: rd(r.f(1, 2.5)), mix: 1 },
+        { type: 'drive', mode: r.pick(['tanh', 'tube']), drive: rd(r.f(2, 6) + w * 6), tone: Math.round(r.f(400, 1200)), out: 0.7, mix: 1 },
+        { type: 'duck', src: 'kick', amt: rd(r.f(0.75, 0.95)), att: 2, rel: Math.round(r.f(140, 300)) }] };
+  }
+  function breakSound(r, o) {
+    const t = o.tone, w = o.wild, fx = [{ type: 'filter', mode: 'lp', cut: Math.round(2500 + t * t * 16000), res: rd(r.f(0.05, 0.25)), mix: 1 }];
+    if (r.c(0.4 + w * 0.4)) fx.push({ type: 'drive', mode: r.pick(['tanh', 'tube', 'clip']), drive: rd(r.f(1.5, 4) + w * 6), tone: Math.round(3000 + t * 9000), out: 0.7, mix: rd(r.f(0.4, 1)) });
+    if (r.c(w * 0.6)) fx.push({ type: 'crush', bits: r.i(6, 12), down: r.i(1, 4), mix: rd(r.f(0.3, 0.7)) });
+    return { kind: 'drum', poly: 4, note: 'C2', vol: -6, fx, inst: { nodes: {
+      smp: { type: 'sampler', sample: '@break', root: 36, slices: 16, mode: 'oneshot', track: 'off', tune: rd(r.c(w * 0.5) ? r.pick([-2, -1, 1, 2]) : 0), level: 1 },
+      out: { type: 'out', level: 0.9 } }, wires: ['smp -> out', 'smp.r -> out.r'] } };
+  }
+  function blipSound(r, o) {
+    const t = o.tone, w = o.wild;
+    return { kind: 'synth', poly: 4, vol: -14, sends: { A: rd(r.f(0.1, 0.35)), B: rd(r.f(0.15, 0.45)) }, inst: { nodes: {
+      mod: { type: 'op', ratio: rd(r.pick([2, 3, 3.5, 5.19, 7.13]) + w * r.f(0, 4), 2), level: rd(r.f(0.2, 0.5) * (0.5 + t)), mode: 'ad', d: rd(r.f(0.02, 0.08)), vel: 0.8 },
+      car: { type: 'op', ratio: 1, level: 0.7, mode: 'ad', d: rd(r.f(0.05, 0.2)), fb: rd(r.f(0, 0.3)), vel: 0.6 },
+      out: { type: 'out', level: 0.6 } }, wires: ['mod -> car.pm', 'car -> out'] } };
+  }
+
+  // ---------------------------------------------------------------- pattern helpers
+  const lenBars = (L) => (L < 0.34 ? 1 : L < 0.67 ? 2 : 4);
+  // repeat a one-bar base over the loop, with small changes in later bars and a turn at the end
+  function overBars(r, B, base, vary) {
+    let out = [];
+    for (let b = 0; b < B; b++) { const bar = base.slice(); if (vary && b > 0) vary(bar, b === B - 1, b); out = out.concat(bar); }
+    return out;
+  }
+  const scaleNote = (root, sc, deg) => root + sc[((deg % sc.length) + sc.length) % sc.length] + 12 * Math.floor(deg / sc.length);
+  const hitsOf = (arr) => arr.filter((x) => x && x !== '.' && x !== '-').length;
+  // the lowest note at or above lo in the roll's key
+  const inKey = (o, lo) => lo + ((((o._pc - lo) % 12) + 12) % 12);
+  // a melodic step away from the root, in scale degrees: 0 when the Melody dial is down, small steps when low, leaps when high
+  function mdeg(r, o, wide) {
+    const m = o.mel; if (m <= 0 || !r.c(0.12 + m * 0.7)) return 0;
+    const sp = Math.max(1, Math.round(m * (wide ? 7 : 4)));
+    let d = r.i(1, sp) * (r.c(0.5) ? 1 : -1);
+    if (r.c(m * m * 0.4)) d += (r.c(0.5) ? 1 : -1) * o._sc.length;
+    return d;
+  }
+  const mnote = (r, o, root, wide) => scaleNote(root, o._sc, mdeg(r, o, wide));
+
+  // closed hats in any style: step patterns when straight, a generative machine when not
+  function hatPattern(r, o, B, style, note) {
+    const d = o.hits, g = o.gen;
+    if (!r.c(g * 0.9 + (style === 'idm' ? 0.3 : 0))) { // straight
+      const fam = style === 'techno'
+        ? r.w([[['.', '.', 'x', '.'], 1.2 - d], [['.', 'x', 'x', 'x'], 0.7], [['o', 'o', 'X', 'o'], d + 0.2], [['x', '.', 'X', 'x'], 0.5], [['.', 'o', 'X', '.'], 0.6], [['.', '.', 'X', 'o'], 0.6]])
+        : style === 'hiphop' ? r.w([[['X', '.', 'o', '.'], 1.3 - d], [['X', 'o', 'x', 'o'], d + 0.3], [['X', '.', 'x', 'o'], 0.6]])
+          : r.w([[['X', '.', 'x', '.'], 1 - d], [['X', 'o', 'x', 'o'], d + 0.3], [['x', 'x', 'X', 'x'], 0.4]]);
+      const base = [].concat(fam, fam, fam, fam);
+      // every roll its own line: accents moved, a few hits added or dropped (never the offbeat the family leans on)
+      for (let i = 0; i < 16; i++) {
+        const on = base[i] && base[i] !== '.';
+        if (on && r.c(0.3)) base[i] = r.pick(['X', 'x', 'o']);
+        else if (!on && r.c(0.06 + d * 0.22)) base[i] = r.pick(['o', 'x']);
+        else if (on && i % 4 !== 2 && r.c(0.12 * (1 - d))) base[i] = '.';
+      }
+      return { steps: steps(overBars(r, B, base, (bar, last) => { if (last && r.c(0.4)) { const k = r.pick([13, 14, 15]); bar[k] = bar[k] && bar[k] !== '.' ? '.' : 'o'; } if (r.c(0.25)) { const k = r.i(0, 15); if (k % 4) bar[k] = '.'; } })) };
+    }
+    const kind = r.w([['gen', 1.2], ['euclid', 1], ['turing', style === 'techno' ? 0.6 : 1.2], ['mini', style === 'hiphop' ? 1.4 : 0.5], ['cells', style === 'idm' ? 1 : 0]]);
+    if (kind === 'euclid') {
+      const n = r.pick([16, 16, 12, 13, 14, 15, 11]), k = clamp(Math.round(n * (0.3 + d * 0.5) + r.i(-1, 1)), 3, n - 1);
+      return { euclid: [{ k, steps: n, rot: r.i(0, 5), v: 0.7, acc: r.i(1, Math.max(1, Math.floor(k / 2))) }] };
+    }
+    if (kind === 'turing') return { div: 4, turing: { bits: r.pick([8, 12, 16]), change: rd(0.03 + g * r.f(0.05, 0.3)), notes: note, density: rd(0.35 + d * 0.55), vel: [0.35, 1], l: 0.5, seed: r.i(1, 9999) } };
+    if (kind === 'mini') {
+      const n = r.pick([8, 16, 16]), q = rd(0.15 + (1 - d) * 0.45, 2);
+      const vel = r.pick(['[1 .5]*' + n / 2, '[1 .45 .75 .5]*' + n / 4, '<[1 .5 .8 .5]*' + n / 4 + ' [1 .4 .7 .6]*' + n / 4 + '>']);
+      return { mini: { code: '[x x?' + q + ']*' + n / 2, vel, bars: 1, seed: r.i(1, 999) } };
+    }
+    if (kind === 'cells') return { div: 4, cells: { rule: r.pick(['life', 'highlife', 'seeds', 30, 90, 110]), notes: note + ' ' + note, steps: r.pick([8, 12, 16]), every: r.i(1, 3), max: 1, fill: rd(0.25 + d * 0.4), l: 0.5 } };
+    return { gen: { mode: 'random', notes: note, meters: '4/4', divs: '1/16*6 1/32*' + (1 + Math.round(g * 3)) + (style === 'idm' ? ' 1/16T*2' : ''), density: rd(0.35 + d * 0.55), down: 0.3,
+      ratchet: rd(g * 0.25), ratchetMax: 3, vel: [0.35, 0.95], len: [0.3, 0.6], repeat: rd(0.6 - g * 0.35), mutate: rd(0.15 + g * 0.3), seed: 0 } };
+  }
+  // a short Markov loop flowing down its rows: each row a hit (of one of a few pitches) or a rest, each its own length
+  function markovLoop(r, o, notes, n, opt = {}) {
+    const N = notes.length + 0, d = o.hits, g = o.gen;
+    const pool = [], m = [], sdur = [], svel = [];
+    for (let i = 0; i < n; i++) pool.push(notes[i % notes.length]);
+    for (let i = 0; i <= n; i++) {
+      const row = new Array(n + 1).fill(0);
+      if (i === n) row[0] = 1;
+      else {
+        if (r.c(opt.hit !== undefined ? opt.hit : 0.35 + d * 0.5) || (i === 0 && opt.first)) row[i] = 1; else row[n] = 1;
+        if (r.c(g * 0.6)) { const j = r.i(0, n - 1); row[j] = Math.max(row[j], rd(r.f(0.3, 0.8), 2)); } // another pitch now and then
+        if (row[i] && r.c(g * 0.4)) row[n] = rd(r.f(0.1, 0.4), 2); // and a chance to rest
+      }
+      m.push(row);
+      if (i < n) { sdur.push(r.w([[1, 5], [2, 3], [3, 1.5 + o.wild], [4, o.wild * 1.5], [6, o.wild]])); svel.push(rd(r.f(0.55, 1), 2)); }
+    }
+    sdur.push(1); svel.length = n;
+    return { gen: { mode: 'markov', flow: 'down', notes: pool.join(' '), matrix: m, sdur, svel,
+      meters: opt.meters || '4/4', divs: opt.divs || '1/16', ratchet: rd(opt.ratchet !== undefined ? opt.ratchet : g * 0.3), ratchetMax: 4, repeat: 0.2, down: 0.5, vel: [0.6, 1], len: [0.3, 0.8], seed: 0 } };
+  }
+
+  // ---------------------------------------------------------------- styles
+  function techno(r, o) {
+    const B = lenBars(o.len), d = o.hits, g = o.gen, parts = [];
+    const low = o.low && o.low !== 'random' ? o.low : r.w([['rumble', 1.3], ['bass', 1], ['both', 0.8], ['none', 0.25]]);
+    const kickBar = ['x', '.', '.', '.', 'x', '.', '.', '.', 'x', '.', '.', '.', 'x', '.', '.', '.'];
+    const kickSteps = overBars(r, B, kickBar, (bar, last) => {
+      if (last && d > 0.5 && r.c(0.45)) bar[r.pick([14, 15])] = 'o';
+      if (last && r.c(0.12)) { bar[12] = '.'; bar[14] = 'x'; }
+      if (r.c(o.wild * 0.25)) bar[r.pick([3, 7, 11])] = 'o';
+    });
+    parts.push({ role: 'kick', track: kickSound(r, o, 'techno'), pattern: () => ({ steps: steps(kickSteps) }) });
+    if (low === 'rumble' || low === 'both') {
+      const off = r.c(0.3);
+      const rs = kickSteps.map((x, i) => (off ? (i % 4 === 2 ? 'x' : null) : (x ? 'x' : null)));
+      parts.push({ role: 'rumble', track: rumbleSound(r, o), pattern: () => ({ steps: steps(rs) }) });
+    }
+    if (low === 'bass' || low === 'both') {
+      const root = inKey(o, 33), beat = r.w([[['.', 'x', 'x', 'x'], 0.5 + d], [['.', '.', 'x', '.'], 1.2 - d], [['.', 'x', '.', 'x'], 0.8], [['.', '.', 'x', 'x'], 0.7]]);
+      const tok = (k) => nn(k === 0 ? root : mnote(r, o, root));
+      const arr = overBars(r, B, [].concat(beat, beat, beat, beat), (bar) => { if (r.c(0.3)) { const k = r.i(0, 15); if (k % 4) bar[k] = bar[k] && bar[k] !== '.' ? '.' : 'x'; } }).map((x, i) => (x && x !== '.' ? tok(i % 7 === 3 ? 1 : 0) : null));
+      parts.push({ role: 'bass', track: bassSound(r, o, 'techno'), pattern: () => (g > 0.7 && r.c(0.5) ? { div: 4, turing: { bits: 8, change: rd(g * 0.15), notes: [nn(root), nn(root), nn(mnote(r, o, root)), nn(mnote(r, o, root))].join(' '), density: rd(0.45 + d * 0.4), l: 0.7, seed: r.i(1, 9999) } } : { steps: steps(arr) }) });
+    }
+    if (r.c(0.55 + d * 0.3)) {
+      const sn = snareSound(r, o, 'techno');
+      const arr = overBars(r, B, ['.', '.', '.', '.', 'X', '.', '.', '.', '.', '.', '.', '.', 'X', '.', '.', '.'], (bar, last) => { if (last && r.c(d * 0.5)) bar[15] = 'o'; if (r.c(d * 0.2)) bar[r.pick([7, 10, 14])] = 'o'; });
+      parts.push({ role: 'snare', track: sn, pattern: () => ({ steps: steps(arr) }) });
+    }
+    const hat = hatSound(r, o, false, 'techno');
+    parts.push({ role: 'hats', track: hat, pattern: (note) => hatPattern(r, o, B, 'techno', note) });
+    if (r.c(0.55 + d * 0.3)) {
+      const oh = hatSound(r, o, true, 'techno');
+      const arr = overBars(r, B, [0, 1, 2, 3].flatMap(() => ['.', '.', r.c(0.55 + d * 0.45) ? 'x' : '.', '.']), null);
+      parts.push({ role: 'open', track: oh, pattern: () => (r.c(g * 0.6) ? { euclid: [{ k: 3, steps: 8, rot: r.pick([2, 3, 5]), v: 0.7 }] } : { steps: steps(arr) }) });
+    }
+    if (r.c(0.35 + d * 0.45)) parts.push({ role: 'perc', track: percSound(r, o), pattern: () => percPattern(r, o, B) });
+    return { bpm: r.i(124, 136) + Math.round(o.wild * r.i(0, 8)), swing: rd(o.swing * r.f(0, 0.08), 3), bars: B, parts, low };
+  }
+  function percPattern(r, o, B) {
+    const d = o.hits, g = o.gen;
+    if (r.c(g * 0.85)) {
+      const kind = r.w([['euclid', 2], ['cart', 1], ['cells', g * 0.8]]);
+      if (kind === 'cart') { const w = r.i(2, 4), hh = r.i(2, 3), gates = Array.from({ length: w * hh }, () => r.w([['x', 0.3 + d], ['X', 0.3], ['o', 0.5], ['.', 1.4 - d]])).join('');
+        return { div: 4, cart: { w, h: hh, gates, mode: r.pick(['xy', 'snake', 'walk', 'random']), x: 1, y: r.pick([2, 3, 4, 5]), l: 0.5, seed: r.i(1, 9999) } }; }
+      if (kind === 'cells') return { div: 4, cells: { rule: r.pick(['seeds', 'highlife', 'life', 90]), notes: 'x', steps: r.pick([8, 12, 16]), every: r.i(1, 4), max: 1, fill: rd(0.2 + d * 0.3), l: 0.5 } };
+      const [k, n] = r.pick([[3, 8], [5, 16], [5, 12], [7, 16], [4, 11], [3, 7], [5, 13]]);
+      return { euclid: [{ k: clamp(k + Math.round((d - 0.5) * 2), 2, n - 1), steps: n, rot: r.i(0, n - 1), v: 0.75, acc: r.i(0, 2) }] };
+    }
+    const bar = new Array(16).fill(null), cand = r.shuffle([1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15]);
+    for (let i = 0; i < 2 + Math.round(d * 4); i++) bar[cand[i]] = r.pick(['x', 'x', 'o', 'X']);
+    return { steps: steps(overBars(r, B, bar, (b2) => { if (r.c(0.3)) { const k = r.i(0, 15); b2[k] = b2[k] && b2[k] !== '.' ? null : 'o'; } })) };
+  }
+  function hiphop(r, o) {
+    const B = lenBars(o.len), d = o.hits, g = o.gen, parts = [];
+    const kickBar = () => {
+      const bar = new Array(16).fill(null); bar[0] = 'X';
+      const cand = [[10, 3], [7, 2], [3, 2], [11, 2], [6, 1.5], [14, 1], [2, 1], [13, 1], [15, 0.7], [8, 0.8], [9, 0.6]];
+      const n = 1 + Math.round(d * 3) + r.i(0, 1);
+      for (let i = 0; i < n; i++) { const k = r.w(cand.filter((c) => !bar[c[0]])); bar[k] = r.c(0.25) ? 'o' : 'x'; }
+      return bar;
+    };
+    const base = kickBar();
+    const kick = overBars(r, B, base, (bar, last) => { if (r.c(0.5)) { const on = bar.map((x, i) => (x && i ? i : -1)).filter((i) => i > 0); if (on.length) bar[r.pick(on)] = null; const k = r.pick([3, 7, 10, 11, 13, 14]); if (!bar[k]) bar[k] = 'x'; } if (last && r.c(0.3)) bar[15] = 'o'; });
+    parts.push({ role: 'kick', track: kickSound(r, o, 'hiphop'), pattern: () => ({ steps: steps(kick) }) });
+    const snBar = new Array(16).fill(null); snBar[4] = 'X'; snBar[12] = 'X';
+    const ghosts = r.shuffle([3, 6, 7, 9, 11, 14, 15]).slice(0, Math.round(d * 3 * r.f(0.3, 1)));
+    for (const k of ghosts) snBar[k] = g > 0.4 && r.c(0.5) ? 'o?' : 'o';
+    const sn = overBars(r, B, snBar, (bar, last) => { if (last && r.c(0.35)) bar[r.pick([13, 15])] = 'x'; if (r.c(0.2)) bar[12] = null, bar[13] = 'X'; });
+    parts.push({ role: 'snare', track: snareSound(r, o, 'hiphop'), pattern: () => ({ steps: steps(sn) }) });
+    parts.push({ role: 'hats', track: hatSound(r, o, false, 'hiphop'), pattern: (note) => hatPattern(r, o, B, 'hiphop', note) });
+    if (r.c(0.45)) { const oh = new Array(16).fill(null); oh[r.pick([6, 14, 10])] = 'x'; parts.push({ role: 'open', track: hatSound(r, o, true, 'hiphop'), pattern: () => ({ steps: steps(overBars(r, B, oh, null)) }) }); }
+    if (r.c(0.3 + d * 0.4)) parts.push({ role: 'perc', track: percSound(r, o), pattern: () => percPattern(r, o, B) });
+    // a sub that follows the kick, in a minor key
+    const root = inKey(o, 31);
+    let cur = root;
+    const bass = kick.map((x, i) => { if (!x) return null; if (i % 16 === 0) cur = root; else if (r.c(0.6)) cur = mnote(r, o, root); return nn(cur); });
+    for (let i = 0; i < bass.length; i++) if (bass[i] && r.c(0.6)) for (let j = i + 1; j < bass.length && !bass[j] && j < i + 4; j++) bass[j] = '-'; // held on
+    if (r.c(0.85)) parts.push({ role: 'bass', track: bassSound(r, o, 'hiphop'), pattern: () => ({ steps: steps(bass) }) });
+    return { bpm: r.i(80, 96), swing: rd(0.08 + o.swing * r.f(0.12, 0.25), 3), bars: B, parts };
+  }
+  function idm(r, o) {
+    const d = o.hits, g = o.gen, w = o.wild, parts = [];
+    const rows = (lo, hi) => clamp(Math.round(lo + o.len * (hi - lo)) + r.i(-1, 1), 2, 16);
+    const meters = r.c(0.3 + g * 0.5) ? r.pick(['4/4*3 7/8', '4/4 5/4', '7/8*2 9/8', '4/4*2 3/4', '5/8*2 4/4 7/8']) : '4/4';
+    const divs = '1/16*5' + (g > 0.3 ? ' 1/32*' + (1 + Math.round(g * 3)) : '') + (r.c(w) ? ' 1/16T*2' : '');
+    const k = kickSound(r, o, 'idm'), kn = midi(k.note);
+    const kPitches = (note) => { const b = midi(note); return o.mel > 0 ? [nn(b), nn(b), nn(mnote(r, o, b)), nn(mnote(r, o, b))] : [nn(b)]; }; // a few tunings of the kick, in the scale
+    const kick = r.c(0.25 * (1 - g)) ? null : { n: rows(3, 12) };
+    parts.push({ role: 'kick', track: k, pattern: (note) => (kick ? markovLoop(r, o, kPitches(note || nn(kn)), kick.n, { first: true, meters, divs }) : { euclid: [{ k: r.i(3, 5), steps: r.pick([8, 11, 13, 16]), rot: 0, v: 0.9 }] }) });
+    parts.push({ role: 'snare', track: snareSound(r, o, 'idm'), pattern: (note) => markovLoop(r, o, [note, note], rows(3, 14), { hit: 0.2 + d * 0.35, meters, divs, ratchet: g * 0.45 }) });
+    parts.push({ role: 'hats', track: hatSound(r, o, false, 'idm'), pattern: (note) => hatPattern(r, o, 1, 'idm', note) });
+    // pitched blips in a scale, on a Cartesian grid, a Turing loop or another Markov loop
+    const root = inKey(o, 55), sc = o._sc;
+    const notes = Array.from({ length: r.i(4, 8) }, (x, i) => nn(i === 0 ? root : mnote(r, o, root, true)));
+    const bl = r.w([['cart', 1.2], ['turing', 1], ['markov', 1]]);
+    parts.push({ role: 'blips', track: blipSound(r, o), pattern: () => bl === 'cart'
+      ? { div: r.pick([4, 4, 8]), cart: { w: r.i(2, 4), h: r.i(2, 4), notes: notes.join(' '), gates: Array.from({ length: 16 }, () => r.w([['x', 0.4 + d], ['X', 0.3], ['o', 0.4], ['.', 1.4 - d]])).join(''), mode: r.pick(['xy', 'snake', 'walk', 'random']), x: 1, y: r.pick([3, 5, 7]), l: 0.6, seed: r.i(1, 9999) } }
+      : bl === 'turing' ? { div: 4, turing: { bits: r.pick([5, 7, 8, 11]), change: rd(0.05 + g * 0.2), notes: notes.join(' '), density: rd(0.3 + d * 0.4), l: 0.6, seed: r.i(1, 9999) } }
+        : markovLoop(r, o, notes, rows(4, 12), { hit: 0.3 + d * 0.3, divs: '1/16*3 1/32' }) });
+    if (r.c(0.5 + d * 0.3)) parts.push({ role: 'perc', track: percSound(r, o), pattern: () => percPattern(r, Object.assign({}, o, { gen: Math.max(g, 0.6) }), 1) });
+    if (r.c(0.7)) { const broot = inKey(o, 31), bn = [nn(broot), nn(broot), nn(mnote(r, o, broot)), nn(mnote(r, o, broot)), nn(mnote(r, o, broot))];
+      parts.push({ role: 'bass', track: bassSound(r, o, 'idm'), pattern: () => markovLoop(r, o, bn, rows(3, 10), { hit: 0.3 + d * 0.3, meters, divs: '1/16', ratchet: 0 }) }); }
+    return { bpm: r.i(96, 168), swing: rd(o.swing * r.f(0, 0.1), 3), bars: 1, parts };
+  }
+  function breaks(r, o) {
+    const B = lenBars(o.len), d = o.hits, g = o.gen, parts = [];
+    const dnb = r.c(0.55);
+    // the break: chopped and rearranged, slice by slice (slice i = note C2 + i)
+    const sl = (i) => nn(36 + (((i % 16) + 16) % 16));
+    const brk = breakSound(r, o);
+    const straightBreak = () => {
+      const arr = [];
+      for (let b = 0; b < B; b++) for (let i = 0; i < 16; i++) {
+        let s0 = i;
+        if (r.c(0.15 + d * 0.15 + o.wild * 0.15)) s0 = r.c(0.6) ? (i + r.pick([4, 8, 12])) % 16 : r.i(0, 15); // swap in a slice from another beat (same place in it, mostly)
+        if (r.c(0.06 + g * 0.06) && i > 0) s0 = (i - 1); // stutter
+        arr.push(r.c(0.06 * (1 - d)) && i % 4 ? null : sl(s0));
+      }
+      return { steps: steps(arr) };
+    };
+    // generative: a Markov loop down the 16 slices: mostly forwards (the diagonal), sometimes another beat's slice, a stutter or a gap
+    const markovBreak = () => {
+      const n = 16, m = [];
+      for (let i = 0; i <= n; i++) {
+        const row = new Array(n + 1).fill(0);
+        if (i === n) row[0] = 1;
+        else {
+          row[i] = 1;
+          if (r.c(0.4 + g * 0.5)) row[(i + 4) % 16] = rd(r.f(0.2, 0.6) * g + 0.1, 2);
+          if (r.c(g * 0.5)) row[(i + 8) % 16] = rd(r.f(0.2, 0.5) * g + 0.05, 2);
+          if (i > 0 && r.c(g * 0.35)) row[i - 1] = rd(r.f(0.15, 0.4), 2);
+          if (i % 4 && r.c(0.3 * (1 - d))) row[n] = rd(r.f(0.1, 0.3), 2);
+        }
+        m.push(row);
+      }
+      return { gen: { mode: 'markov', flow: 'down', notes: Array.from({ length: 16 }, (x, i) => sl(i)).join(' '), matrix: m, meters: '4/4', divs: '1/16', ratchet: rd(g * 0.12), ratchetMax: 3, repeat: 0.25, down: 1, vel: [0.75, 1], len: [0.8, 1], seed: 0 } };
+    };
+    parts.push({ role: 'break', track: brk, pattern: () => (r.c(0.2 + g * 0.8) ? markovBreak() : straightBreak()) });
+    const kb = dnb ? ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x', '.', '.', '.', '.', '.'] : ['x', '.', '.', '.', '.', '.', '.', 'x', '.', '.', 'x', '.', '.', '.', '.', '.'];
+    const kick = overBars(r, B, kb, (bar, last) => { if (r.c(0.35 + d * 0.3)) bar[r.pick([6, 11, 13, 15])] = 'o'; if (last && r.c(0.3)) bar[10] = null; });
+    if (r.c(0.8)) parts.push({ role: 'kick', track: kickSound(r, o, 'breaks'), pattern: () => ({ steps: steps(kick) }) });
+    const snb = new Array(16).fill(null); snb[4] = 'X'; snb[12] = 'X';
+    if (r.c(0.75)) parts.push({ role: 'snare', track: snareSound(r, o, 'breaks'), pattern: () => ({ steps: steps(overBars(r, B, snb, (bar, last) => { if (last && r.c(0.5)) { bar[14] = 'o'; bar[15] = 'x'; } if (r.c(d * 0.3)) bar[r.pick([7, 9, 15])] = 'o'; })) }) });
+    if (r.c(0.6)) parts.push({ role: 'hats', track: hatSound(r, o, false, 'breaks'), pattern: (note) => hatPattern(r, o, B, 'breaks', note) });
+    // a reese bass holding long notes
+    const root = inKey(o, 28);
+    const bass = []; let held = 0;
+    for (let i = 0; i < 16 * B; i++) { if (held > 0) { bass.push('-'); held--; continue; } if (r.c(i % 8 === 0 ? 0.85 : 0.18 + d * 0.2)) { bass.push(nn(i % 32 === 0 ? root : mnote(r, o, root))); held = r.pick([1, 2, 3, 5, 7]); } else bass.push(null); }
+    if (r.c(0.85)) parts.push({ role: 'bass', track: bassSound(r, o, 'breaks'), pattern: () => ({ steps: steps(bass) }) });
+    return { bpm: dnb ? r.i(166, 176) : r.i(126, 140), swing: rd(o.swing * r.f(0, 0.12), 3), bars: B, parts };
+  }
+  const GEN = { techno, hiphop, idm, breaks };
+  const DEF = { hits: 0.5, tone: 0.5, len: 0.3, gen: 0.4, swing: 0.5, wild: 0.2, mel: 0.35, low: 'random', key: -1, scale: 'random' };
+  // scales each style picks from when the scale is left to chance (names from the page's scale library)
+  const STYLE_SCALES = { techno: [['minor', SC.minor], ['phrygian', SC.phryg]], hiphop: [['minor', SC.minor], ['minor pentatonic', SC.pent], ['dorian', SC.dorian]],
+    idm: [['minor', SC.minor], ['dorian', SC.dorian], ['phrygian', SC.phryg], ['minor pentatonic', SC.pent]], breaks: [['minor', SC.minor], ['phrygian', SC.phryg]] };
+  function roll(style, opts, seed) {
+    if (!GEN[style]) throw new Error('unknown style ' + style);
+    const o = Object.assign({}, DEF, opts || {});
+    for (const k of ['hits', 'tone', 'len', 'gen', 'swing', 'wild', 'mel']) o[k] = clamp(+o[k] || 0, 0, 1);
+    const r = mkRng(seed >>> 0 || 1);
+    o._pc = o.key >= 0 && o.key < 12 ? Math.floor(o.key) : r.i(0, 11);
+    if (Array.isArray(o.scaleIv) && o.scaleIv.length) { o._sc = o.scaleIv.slice().sort((a, b) => a - b); o._scName = o.scale && o.scale !== 'random' ? o.scale : ''; }
+    else { const sp = r.pick(STYLE_SCALES[style]); o._scName = sp[0]; o._sc = sp[1]; }
+    const res = GEN[style](r, o);
+    res.key = o._pc; res.keyName = NN[o._pc]; res.scaleName = o._scName; res.scaleIv = o._sc;
+    for (const p of res.parts) { p.track.name = p.track.name || ROLE_NAMES[p.role]; }
+    res.style = style; res.seed = seed >>> 0; res.label = STYLES[style].label;
+    return res;
+  }
+  // a whole new song from a roll; arrange: intro / groove / break / drop scenes instead of one loop
+  function song(res, arrange) {
+    const ids = {}; const id = (nm) => { let b = nm.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 't', k = b, i = 2; while (ids[k]) k = b + '-' + i++; ids[k] = 1; return k; };
+    const tracks = res.parts.map((p) => { const t = JSON.parse(JSON.stringify(p.track)); t.id = id(t.name); p.id = t.id; t.patterns = [p.pattern(t.note)]; return t; });
+    for (const t of tracks) for (const f of t.fx || []) if (f.type === 'duck') f.src = (res.parts.find((p) => p.role === 'kick') || {}).id || f.src;
+    const all = {}; for (const p of res.parts) all[p.id] = 0;
+    const B = res.bars, only = (roles) => { const o2 = {}; for (const p of res.parts) if (roles.includes(p.role)) o2[p.id] = 0; return o2; };
+    const scenes = arrange ? [
+      { name: 'Intro', bars: B * 2, play: only(['hats', 'open', 'perc', 'blips', 'rumble', 'break'].filter((x) => res.parts.some((p) => p.role === x)).slice(0, 3)) },
+      { name: 'Groove', bars: B * 4, play: all },
+      { name: 'Break', bars: B * 2, play: only(['hats', 'open', 'perc', 'blips', 'rumble', 'snare']) },
+      { name: 'Drop', bars: B * 4, play: all }]
+      : [{ name: res.label + ' ' + res.seed, bars: B, play: all }];
+    const out = { title: res.label + ' roll #' + res.seed, bpm: res.bpm, swing: res.swing, tracks, scenes };
+    if (res.scaleName) out.scale = { root: res.keyName, name: res.scaleName }; else out.scale = { root: res.keyName, notes: res.scaleIv };
+    return out;
+  }
+  return { roll, song, roleOf, ROLES, ROLE_NAMES, STYLES, DEF, mkRng, midi, nn };
+})();
+
+</script>
+<script>const RIG_VERSION = '2026-11-28 14:11';</script>
 <script>/* ============================================================================================
  * RIG: GUIDE FOR AI AGENTS (how to hand a user a link that opens your composition)
  * ============================================================================================
@@ -6126,6 +6638,18 @@ async function playPattern(t, pi) {
 }
 function backToArrangement(t) { delete S.forced[t.id]; send({ t: 'force', id: t.id, pat: -1 }); render(); }
 function pushScenes() { send({ t: 'scenes', scenes: clone(S.song.scenes) }); save(); }
+// move scene `from` to position `to` (drag in the arrangement, or the arrow keys on its handle); what plays carries on
+function moveScene(from, to) {
+  const sc = S.song.scenes; to = clamp(to, 0, sc.length - 1);
+  if (from === to || !sc[from]) return;
+  snap();
+  const order = sc.map((x, i) => i); order.splice(to, 0, order.splice(from, 1)[0]); // order[new] = old
+  const map = {}; order.forEach((old, nw) => { map[old] = nw; });
+  S.song.scenes = order.map((old) => sc[old]);
+  if (S.beatLast && map[S.beatLast.scene] !== undefined) S.beatLast.scene = map[S.beatLast.scene];
+  if (S.st) { if (map[S.st.scene] !== undefined) S.st.scene = map[S.st.scene]; if (S.st.pending >= 0 && map[S.st.pending] !== undefined) S.st.pending = map[S.st.pending]; }
+  send({ t: 'scenes', scenes: clone(S.song.scenes), map }); save();
+}
 
 // ------------------------------------------------------------------ arm + note recording
 // An armed track plays what the keyboards play (each track can pick one input and channel) and, with ● Rec on and
@@ -7061,7 +7585,123 @@ function renderSong(m) {
   S.live.strips = (st) => { for (const t of s.tracks) { const el = mix.querySelector(`[data-pat="${t.id}"]`); if (el) el.textContent = st.pats[t.id] >= 0 ? (S.forced[t.id] === st.pats[t.id] ? '▶ ' : 'Pattern ') + String.fromCharCode(65 + st.pats[t.id]) : st.playing ? '—' : ''; } };
   // arrangement grid
   m.append(arrangement());
+  m.append(beatSection());
   m.append(samplesSection());
+}
+
+// ---- beat starter (src/beatgen.js): a style button rolls a new beat, sounds and patterns, shaped by the dials.
+// "New song" starts over with it; "Next scene" lays it onto the tracks already there (their sounds kept) as a new scene.
+S.beat = Object.assign({}, RigBeat.DEF, { mode: 'new', arrange: false, lock: {}, open: true, seed: 0, style: '' });
+try { Object.assign(S.beat, JSON.parse(localStorage.getItem('rig.beat') || '{}')); } catch (e) {}
+function beatSave() { try { localStorage.setItem('rig.beat', JSON.stringify(S.beat)); } catch (e) {} }
+// the first track of each beat role in the song (from its name: Kick, Hats, Bass…)
+function beatRoles(s) { const m = {}; for (const t of s.tracks) { if (t.kind === 'bus' || t.kind === 'control') continue; const r = RigBeat.roleOf(t.name); if (r && !m[r]) m[r] = t; } return m; }
+function beatUid(s, name) { const used = new Set(s.tracks.map((t) => t.id).concat(s.returns.map((t) => t.id), ['master'])); const b = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 't'; let k = b, i = 2; while (used.has(k)) k = b + '-' + i++; return k; }
+// the key and scale a roll uses: the song's own, one picked in the starter, or chance
+function beatScaleOpts() {
+  const o = S.beat, sc = S.song.scale, pcOf = (nm) => { if (typeof nm === 'number') return ((Math.round(nm) % 12) + 12) % 12; const m = /^([A-Ga-g])(#|b)?/.exec(String(nm || '')); if (!m) return -1; return (('C D EF G A B'.indexOf(m[1].toUpperCase())) + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12; };
+  if (o.scale === 'song' && sc) return { key: pcOf(sc.root), scale: sc.name || 'song', scaleIv: (sc.name && L.SCALES[sc.name]) || sc.notes || null };
+  if (o.scale && o.scale !== 'random' && o.scale !== 'song' && L.SCALES[o.scale]) return { key: o.key, scale: o.scale, scaleIv: L.SCALES[o.scale] };
+  return { key: o.key, scale: 'random', scaleIv: null };
+}
+function beatRoll(style, seed, how = {}) {
+  const o = S.beat; seed = seed || (1 + Math.floor(Math.random() * 99999));
+  const res = RigBeat.roll(style, Object.assign({}, o, beatScaleOpts()), seed);
+  o.seed = seed; o.style = style; beatSave();
+  const wasPlaying = S.playing;
+  const roles = beatRoles(S.song), locked = (r) => !!(o.lock[r] && roles[r]);
+  let at = 0;
+  if (o.mode === 'new' || !S.song.tracks.length) {
+    const sg = RigBeat.song(res, o.arrange);
+    // parts kept as they are: the player's own track (sound and pattern) instead of the rolled one
+    for (const role in roles) if (locked(role)) {
+      const t = clone(roles[role]), cur = S.song.scenes[curSceneI()], pi = cur && cur.play[t.id] !== undefined ? cur.play[t.id] : 0;
+      const gone = sg.tracks.find((x) => RigBeat.roleOf(x.name) === role);
+      if (gone) { sg.tracks.splice(sg.tracks.indexOf(gone), 1); for (const sc of sg.scenes) delete sc.play[gone.id]; }
+      if (sg.tracks.some((x) => x.id === t.id)) t.id = t.id + '-kept';
+      sg.tracks.push(t); for (const sc of sg.scenes) sc.play[t.id] = pi;
+      if (role === 'kick') for (const x of sg.tracks) for (const f of x.fx || []) if (f.type === 'duck') f.src = t.id;
+    }
+    sg.returns = clone(S.song.returns); // keep the reverb and delay the song has
+    sg.style = '# ' + res.label + ' roll #' + seed + '\nRolled by the beat starter: every part is a new sound and a new pattern. Tap a style again for another, or switch the starter to “Next scene” to roll new patterns onto these sounds.';
+    loadSong(sg, { keepView: true });
+  } else {
+    // next scene: new patterns on the tracks already there, new tracks only for parts the song has none of
+    const s = clone(S.song), rs = beatRoles(s), ci = curSceneI();
+    if (!s.scenes.length) s.scenes.push({ name: 'Scene 1', bars: Math.max(1, Math.round(Math.max(...s.tracks.map((t) => (t.patterns[t.loop || 0] || {}).len || 16)) / 16)), play: Object.fromEntries(s.tracks.filter((t) => t.patterns.length).map((t) => [t.id, t.loop || 0])) });
+    // each roll adds a scene, built on the one before it: after the scene playing, else after the last roll, else at the end.
+    // Re-roll (how.replace) makes the last roll's scene again instead.
+    const lastOk = S.beatLast && s.scenes[S.beatLast.scene] && s.scenes[S.beatLast.scene].name === S.beatLast.name;
+    const last = how.replace && lastOk ? S.beatLast : null;
+    const after = last ? last.scene - 1 : S.playing && ci >= 0 ? ci : lastOk ? S.beatLast.scene : s.scenes.length - 1;
+    const play = clone((s.scenes[Math.max(0, after)] || s.scenes[0]).play);
+    const made = {};
+    const kickId = () => (rs.kick || {}).id || (res.parts.find((p) => p.role === 'kick') || {}).newId || 'kick';
+    for (const p of res.parts) {
+      if (o.lock[p.role] && rs[p.role]) continue;
+      let t = rs[p.role];
+      if (!t) { t = clone(p.track); t.id = beatUid(s, t.name); t.patterns = []; s.tracks.push(t); rs[p.role] = t; p.newId = t.id; }
+      const pat = p.pattern(t.note);
+      let idx = last && last.pats[t.id] !== undefined && t.patterns[last.pats[t.id]] ? last.pats[t.id] : -1;
+      if (idx >= 0) t.patterns[idx] = pat; else { t.patterns.push(pat); idx = t.patterns.length - 1; }
+      play[t.id] = idx; made[t.id] = idx;
+    }
+    for (const t of s.tracks) for (const f of t.fx || []) if (f.type === 'duck' && made[t.id] !== undefined && !s.tracks.some((x) => x.id === f.src)) f.src = kickId();
+    // beat parts this style has none of go quiet in the new scene; everything else (melodies, pads) plays on
+    for (const role in rs) if (!res.parts.some((p) => p.role === role) && !o.lock[role]) delete play[rs[role].id];
+    if (last) { at = last.scene; Object.assign(s.scenes[at], { play, bars: res.bars }); }
+    else {
+      const names = new Set(s.scenes.map((x) => x.name)); let n = 1; while (names.has(res.label + ' ' + n)) n++;
+      at = after + 1; s.scenes.splice(at, 0, { name: res.label + ' ' + n, bars: res.bars, play });
+    }
+    if (o.tempo) { s.bpm = res.bpm; s.swing = res.swing; }
+    if (!s.scale && res.scaleName) s.scale = { root: res.keyName, name: res.scaleName }; // a song with no scale yet takes the roll's
+    loadSong(s, { keepView: true });
+    S.beatLast = { scene: at, name: S.song.scenes[at].name, pats: made };
+  }
+  if (o.mode === 'new') S.beatLast = null;
+  if (wasPlaying) play(at); else if (o.mode !== 'new') S.st = Object.assign({}, S.st || {}, { scene: at });
+  render();
+  toast(res.label + ' roll #' + seed + (o.mode === 'new' ? ': ' + res.parts.length + ' parts at ' + res.bpm + ' bpm' : (how.replace ? ': the scene ' : ' added as the scene ') + S.song.scenes[at].name), { label: 'Undo', fn: undo });
+}
+function beatSection() {
+  const o = S.beat;
+  const dial = (key, label, title) => { const c = control(label, { min: 0, max: 1, def: RigBeat.DEF[key], curve: 'lin', unit: '%' }, () => o[key], (v) => { o[key] = v; beatSave(); }); c.title = title; return c; };
+  const styleBtns = Object.keys(RigBeat.STYLES).map((k) => h('button', { class: 'beatbtn' + (o.style === k ? ' on' : ''), 'aria-label': 'Roll a ' + RigBeat.STYLES[k].label + ' beat', onclick: () => beatRoll(k) }, h('b', null, RigBeat.STYLES[k].label), h('span', null, { techno: 'kick, rumble, hats', hiphop: 'boom bap, swing, sub', idm: 'Markov loops, odd meters', breaks: 'chopped break, reese' }[k])));
+  const seg = (val, label) => h('button', { class: 'small' + (o.mode === val ? ' on' : ''), 'aria-pressed': o.mode === val, onclick: () => { o.mode = val; beatSave(); render(); } }, label);
+  const roles = beatRoles(S.song);
+  const lockChips = Object.keys(roles).length ? h('div', { class: 'row beatlock' }, h('span', { class: 'lbl', title: 'Parts kept exactly as they are when you roll' }, 'Keep'),
+    RigBeat.ROLES.filter((r) => roles[r]).map((r) => h('button', { class: 'small' + (o.lock[r] ? ' on' : ''), 'aria-pressed': !!o.lock[r], title: 'Keep ' + roles[r].name + ' as it is', onclick: () => { o.lock[r] = !o.lock[r]; beatSave(); render(); } }, (o.lock[r] ? '🔒 ' : '') + roles[r].name))) : null;
+  const lastRoll = o.mode !== 'new' && S.beatLast && S.song.scenes[S.beatLast.scene] && S.song.scenes[S.beatLast.scene].name === S.beatLast.name ? S.beatLast.name : '';
+  const seedIn = h('input', { type: 'number', min: 1, max: 99999, value: o.seed || '', placeholder: 'roll #', 'aria-label': 'Roll number', style: { width: '84px' } });
+  const body = h('div', { class: 'beatbody' },
+    h('div', { class: 'beatstyles' }, styleBtns),
+    h('div', { class: 'row beatdials' },
+      dial('hits', 'Hits', 'Fewer or more hits'), dial('tone', 'Tone', 'Darker or brighter sounds'), dial('len', 'Length', 'Shorter or longer loops (1, 2 or 4 bars; for IDM how many rows its Markov loops have)'),
+      dial('gen', 'Generative', 'Straight step patterns, or generative sequencers (Markov, Turing, Euclid, cells, dice)'), dial('swing', 'Swing', 'How much swing, scaled to the style'), dial('wild', 'Wild', 'Classic sounds, or stranger ones (folds, odd pitches, odd meters)'),
+      dial('mel', 'Melody', 'How far the pitched parts (bass, blips, tuned kicks) move: 0 = all on one note, low = a step now and then, high = wide, with leaps'),
+      h('label', { class: 'lbl' }, 'Key', h('select', { 'aria-label': 'Beat key', disabled: o.scale === 'song' && !!S.song.scale, onchange: (e) => { o.key = +e.target.value; beatSave(); } },
+        h('option', { value: '-1', selected: !(o.key >= 0) }, 'Random'), ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].map((k, i) => h('option', { value: String(i), selected: o.key === i }, k)))),
+      h('label', { class: 'lbl' }, 'Scale', h('select', { 'aria-label': 'Beat scale', onchange: (e) => { o.scale = e.target.value; beatSave(); render(); } },
+        h('option', { value: 'random', selected: !o.scale || o.scale === 'random' }, 'Random (suits the style)'),
+        S.song.scale ? h('option', { value: 'song', selected: o.scale === 'song' }, 'Song’s scale (' + (typeof S.song.scale.root === 'number' ? RigBeat.nn(S.song.scale.root + 60).replace(/-?\d+$/, '') : S.song.scale.root) + ' ' + (S.song.scale.name || 'custom') + ')') : null,
+        Object.entries(L.SCALE_GROUPS).map(([g, sc]) => h('optgroup', { label: g }, Object.keys(sc).map((nm) => h('option', { value: nm, selected: o.scale === nm }, nm)))))),
+      h('label', { class: 'lbl' }, 'Low end', h('select', { 'aria-label': 'Techno low end', title: 'Techno: what goes under the kick', onchange: (e) => { o.low = e.target.value; beatSave(); } },
+        [['random', 'Random'], ['rumble', 'Kick rumble'], ['bass', 'Bass rumble'], ['both', 'Both'], ['none', 'Kick only']].map(([v, l]) => h('option', { value: v, selected: o.low === v }, l))))),
+    h('div', { class: 'row beatopts' },
+      h('div', { class: 'row', role: 'group', 'aria-label': 'What a roll does' }, seg('new', 'New song'), seg('scene', 'Next scene with my sounds')),
+      o.mode === 'new' ? h('label', { class: 'chk', title: 'Make intro, groove, break and drop scenes instead of one loop' }, h('input', { type: 'checkbox', checked: !!o.arrange, onchange: (e) => { o.arrange = e.target.checked; beatSave(); } }), 'Arrange')
+        : lastRoll ? h('button', { class: 'small', title: 'Roll the scene ' + lastRoll + ' again instead of adding another', 'aria-label': 'Re-roll the last scene', onclick: () => beatRoll(o.style || 'techno', 0, { replace: true }) }, '↻ Re-roll ' + lastRoll) : null,
+      o.mode !== 'new' ? h('label', { class: 'chk', title: 'Take the style’s tempo and swing too' }, h('input', { type: 'checkbox', checked: !!o.tempo, onchange: (e) => { o.tempo = e.target.checked; beatSave(); } }), 'Change tempo') : null,
+      h('span', { class: 'row', style: { gap: '4px' } }, seedIn, h('button', { class: 'small', title: 'Roll this number again in the last style (same dials = same beat)', onclick: () => { const v = Math.round(+seedIn.value); if (!(v >= 1)) { toast('Type a roll number first'); return; } beatRoll(o.style || 'techno', v); } }, 'Replay'))),
+    lockChips,
+    h('p', { class: 'hint' }, o.mode === 'new'
+      ? 'Each tap is a new beat: new sounds, new patterns. Like one? Switch to “Next scene with my sounds” to roll new patterns onto the same sounds for the next part of the song, and Keep the parts you want to stay.'
+      : 'Each tap adds a new scene after the last one, with new patterns on the tracks you have (your sounds stay) and new tracks only for parts the song is missing. Parts you Keep play on as they are. Re-roll makes the scene you just added again.'));
+  const head = h('div', { class: 'sec-h' }, h('h2', null, 'Start a beat'),
+    h('button', { class: 'small ghost', 'aria-expanded': !!o.open, onclick: () => { o.open = !o.open; beatSave(); render(); } }, o.open ? 'Hide' : 'Show'),
+    h('span', { class: 'hint' }, 'Roll a techno, hip-hop, IDM or breaks beat'));
+  return h('section', { class: 'beat' }, head, o.open ? body : null);
 }
 // the audio output row shown with I/O: which device, and whether to use all of its outputs
 function audioOutRow() {
@@ -7201,6 +7841,32 @@ function autoSpark(pts, len) {
   svg.innerHTML = '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="1.4"/>';
   return svg;
 }
+// drag a scene row by its handle: the row follows the pointer among the others, and the order is kept on release
+function sceneDrag(e, row, tbl) {
+  if (e.button > 0) return;
+  e.preventDefault();
+  const pid = e.pointerId; // listened for on the window: moving the row in the page would drop a pointer capture on it
+  const rows = () => [...tbl.querySelectorAll('tr[data-si]')];
+  const from = +row.dataset.si; let moved = false;
+  row.classList.add('dragging');
+  const move = (ev) => {
+    if (ev.pointerId !== pid) return;
+    const others = rows().filter((r) => r !== row);
+    let before = null;
+    for (const r of others) { const b = r.getBoundingClientRect(); if (ev.clientY < b.top + b.height / 2) { before = r; break; } }
+    if (before) { if (row.nextSibling !== before) { tbl.insertBefore(row, before); moved = true; } }
+    else if (tbl.lastChild !== row) { tbl.append(row); moved = true; }
+  };
+  const up = (ev) => {
+    if (ev && ev.pointerId !== pid) return;
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+    row.classList.remove('dragging');
+    const to = rows().indexOf(row);
+    if (moved && to !== from) { moveScene(from, to); toast('Scene moved', { label: 'Undo', fn: undo }); }
+    render();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+}
 function arrangement() {
   const s = S.song;
   const wrap = h('section');
@@ -7219,7 +7885,11 @@ function arrangement() {
     const row = h('tr', { class: S.st && S.st.scene === i ? 'cur' : '' });
     const cnt = h('span', { class: 'acount' }), drawCnt = () => { const na = sc.auto ? Object.keys(sc.auto).length : 0; cnt.hidden = !na; cnt.textContent = na; cnt.title = na + ' automated parameter' + (na === 1 ? '' : 's'); };
     drawCnt(); (S.live.acounts || (S.live.acounts = [])).push(drawCnt);
-    row.append(h('td', { class: 'sname' }, h('input', { type: 'text', value: sc.name, 'aria-label': 'Scene name', onchange: (e) => { sc.name = e.target.value; pushScenes(); render(); } }), cnt));
+    const grip = h('button', { class: 'sgrip', title: 'Drag to move the scene (or use the arrow keys)', 'aria-label': 'Move scene ' + sc.name,
+      onkeydown: (e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const to = i + (e.key === 'ArrowUp' ? -1 : 1); if (to < 0 || to >= s.scenes.length) return; moveScene(i, to); render(); const g = document.querySelectorAll('.arr .sgrip')[to]; if (g) g.focus(); } },
+      onpointerdown: (e) => sceneDrag(e, row, tbl) }, '⠿');
+    row.dataset.si = i;
+    row.append(h('td', { class: 'sname' }, grip, h('input', { type: 'text', value: sc.name, 'aria-label': 'Scene name', onchange: (e) => { sc.name = e.target.value; pushScenes(); render(); } }), cnt));
     row.append(h('td', { class: 'sbars' }, h('input', { type: 'number', min: 1, max: 256, value: sc.bars, 'aria-label': 'Bars', onchange: (e) => { sc.bars = clamp(+e.target.value || 4, 0.25, 256); pushScenes(); render(); } })));
     for (const t of arrTracks) {
       const cur = sc.play[t.id];
@@ -7238,7 +7908,7 @@ function arrangement() {
       h('button', { class: 'small ghost', title: 'Delete scene', 'aria-label': 'Delete scene', onclick: () => { snap(); s.scenes.splice(i, 1); pushScenes(); render(); toast('Scene deleted', { label: 'Undo', fn: undo }); } }, '✕')));
     tbl.append(row);
   });
-  wrap.append(h('div', { class: 'grid-wrap' }, tbl), h('p', { class: 'hint' }, 'Each cell is the pattern a track plays in that scene (· = silent). Duplicating a scene copies its automation too.'), autoPanel());
+  wrap.append(h('div', { class: 'grid-wrap' }, tbl), h('p', { class: 'hint' }, 'Each cell is the pattern a track plays in that scene (· = silent). Drag ⠿ to move a scene. Duplicating a scene copies its automation too.'), autoPanel());
   return wrap;
 }
 // ---- your own instruments and effects, kept in this browser and usable in any song
