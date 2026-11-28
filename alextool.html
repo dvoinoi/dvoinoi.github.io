@@ -419,6 +419,17 @@ label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px
 .arr .sgrip:hover, .arr .sgrip:focus-visible { color: var(--accent); }
 .arr tr.dragging { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--panel2); cursor: grabbing; }
 .arr tr.dragging .sgrip { cursor: grabbing; color: var(--accent); }
+/* export */
+.expdlg h3 { margin: 12px 0 6px; font-size: 13px; color: var(--dim); font-weight: 600; }
+.expdlg h3:first-child { margin-top: 0; }
+.expbar { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin: 10px 0; }
+.expbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+a.btnlink { display: inline-block; padding: 8px 14px; border-radius: var(--r); text-decoration: none; }
+a.btnlink.primary { background: var(--accent); color: var(--ink); border: 1px solid var(--accent); font-weight: 600; }
+/* where the loop is, along the top of the page */
+#looppos { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: #ffd21f; transform: scaleX(0); transform-origin: 0 50%; z-index: 60; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+#looppos.on { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) { #looppos.on { transition: opacity 0.2s, transform 0.034s linear; } }
 </style><style id="usercss"></style>
 </head><body>
 <header id="top"></header>
@@ -4290,15 +4301,18 @@ function RigEngine() {
         for (let k = 0; k < ng; k++) { groups[k].inL = 0; groups[k].inR = 0; }
         for (let c = 0; c < N; c++) acc[c] = 0;
         let ml = 0, mr = 0;
+        const cap = this.cap; // exporting: every channel's output, sample by sample (see capture())
         for (let k = 0; k < order.length; k++) {
           const t = order[k]; t.tick();
           const l = t.l, r = t.r;
+          if (cap) { const c = cap.ch[t.id]; if (c) { c.L[cap.i] = l; c.R[cap.i] = r; } }
           if (t.dk === 0) { ml += l; mr += r; } else if (t.dk === 1) { t.db.inL += l; t.db.inR += r; } else toHw(t, l, r);
           const sd = t.sends;
           for (let j = 0; j < nr; j++) if (sd[j] > 0) { rets[j].inL += l * sd[j]; rets[j].inR += r * sd[j]; }
         }
-        for (let k = 0; k < nr; k++) { const r = rets[k]; r.tick(); if (r.dk === 2) toHw(r, r.l, r.r); else { ml += r.l; mr += r.r; } }
+        for (let k = 0; k < nr; k++) { const r = rets[k]; r.tick(); if (cap) { const c = cap.ch[r.id]; if (c) { c.L[cap.i] = r.l; c.R[cap.i] = r.r; } } if (r.dk === 2) toHw(r, r.l, r.r); else { ml += r.l; mr += r.r; } }
         M.inL = ml; M.inR = mr; M.tick();
+        if (cap) { const c = cap.ch.master; if (c) { c.L[cap.i] = M.l; c.R[cap.i] = M.r; } cap.i++; } // the master before the output's clip
         acc[mc] += M.l; if (N > 1) acc[mc + 1] += M.r;
         const cp = this.chPk;
         for (let c = 0; c < N; c++) { const v = acc[c]; chs[c][i] = v > 1 ? 1 : v < -1 ? -1 : v; const a = v < 0 ? -v : v; if (a > cp[c]) cp[c] = a; }
@@ -5854,7 +5868,131 @@ const RigBeat = (() => {
 })();
 
 </script>
-<script>const RIG_VERSION = '2026-11-28 14:11';</script>
+<script>// Export: render the song, one scene, or the loop offline to WAV: the mixdown, or one file per channel (stems) in a zip.
+// AI guide: RigExport.exportJob(R, song, opt, samples, progress) runs the engine faster than real time (in a worker, see
+// ui.js exportAudio) and returns { sr, ch: {id: {parts: [Uint8Array…], bytes, peak}}, names, bits, seconds }: the
+// WAV data of each channel without its header. wavFile(ch, sr, bits) adds the header; zipParts(files) packs several.
+// opt: what 'song' (every scene in order) | 'scene' (opt.scene, played opt.repeat times) | 'loop' (no scenes: opt.bars);
+// rate 44100 | 48000 | 96000; hq: render at twice the rate and filter down (cleaner highs: less aliasing from
+// oscillators, distortion and FM); bits 16 (dithered) | 24 | 32 (float, nothing clipped); tail: seconds left to ring
+// out after the end (reverbs, delays); loopReady: play it twice and keep the second pass, so tails wrap round to the
+// start and the file loops seamlessly; stems: also every track, bus and return (after its fader, without the master's
+// effects), each from the same single pass so generative parts line up.
+const RigExport = (() => {
+  function exportJob(R, raw, opt, samples, progress) {
+    const os = opt.hq ? 2 : 1, sr = (opt.rate || 48000) * os, bits = opt.bits === 16 || opt.bits === 32 ? opt.bits : 24;
+    const { song } = R.normSong(raw);
+    let beats, mode = 'loop';
+    if (opt.what === 'scene' && song.scenes[opt.scene | 0]) { const sc = song.scenes[opt.scene | 0]; song.scenes = [sc]; beats = sc.bars * 4 * Math.max(1, opt.repeat | 0 || 1); }
+    else if (opt.what === 'song' && song.scenes.length) { beats = song.scenes.reduce((a, sc) => a + sc.bars * 4, 0); mode = 'song'; }
+    else { song.scenes = []; beats = Math.max(0.25, +opt.bars || 4) * 4; }
+    const e = new R.Engine(sr, () => {});
+    for (const k in samples || {}) e.G.samples[k] = samples[k];
+    e.load(song);
+    // faders start where they are set (live, they glide up from silence over the first few milliseconds)
+    for (const t of e.tracks.concat(e.returns, [e.master])) { const g = t.mix.vol <= -60 ? 0 : Math.pow(10, t.mix.vol / 20); t.lv = t.mix.vol; t.lg = g; t.gs = t.isBus || e.audible(t) ? g : 0; }
+    const names = { master: 'Mixdown' }, ids = ['master'];
+    if (opt.stems) {
+      for (const t of song.tracks) if (t.kind !== 'control') { ids.push(t.id); names[t.id] = t.name; }
+      for (const r of song.returns) { ids.push(r.id); names[r.id] = r.name || ('Return ' + r.id); }
+    }
+    const B = 1024, cap = { i: 0, ch: {} };
+    for (const id of ids) cap.ch[id] = { L: new Float32Array(B), R: new Float32Array(B) };
+    e.cap = cap;
+    e.msg({ t: 'mode', v: mode }); e.msg({ t: 'play', scene: 0 });
+    // a 2× decimator per channel: windowed-sinc low-pass at ~22 kHz (of the output rate's 24), every second sample kept
+    const TAPS = 95, hk = new Float32Array(TAPS);
+    { const fc = 0.23, mid = (TAPS - 1) / 2; let sum = 0;
+      for (let k = 0; k < TAPS; k++) { const x = k - mid, w = 0.42 - 0.5 * Math.cos(2 * Math.PI * k / (TAPS - 1)) + 0.08 * Math.cos(4 * Math.PI * k / (TAPS - 1)); hk[k] = (x === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * x) / (Math.PI * x)) * w; sum += hk[k]; }
+      for (let k = 0; k < TAPS; k++) hk[k] /= sum; }
+    const mkDec = () => { let hist = new Float32Array(TAPS - 1); return (x, n) => {
+      const buf = new Float32Array(TAPS - 1 + n); buf.set(hist); buf.set(x.subarray(0, n), TAPS - 1);
+      const out = new Float32Array(n >> 1);
+      for (let j = 0; j < out.length; j++) { let s = 0; const o = 2 * j + 1; for (let k = 0; k < TAPS; k++) s += hk[k] * buf[o + k]; out[j] = s; }
+      hist = buf.slice(buf.length - (TAPS - 1)); return out; }; };
+    let seed = 22222; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const enc = {};
+    for (const id of ids) enc[id] = { parts: [], bytes: 0, peak: 0, dL: os > 1 ? mkDec() : null, dR: os > 1 ? mkDec() : null };
+    const put = (c, L, Rr, n) => {
+      const bps = bits / 8, buf = new ArrayBuffer(n * 2 * bps), v = new DataView(buf);
+      let o = 0, pk = c.peak;
+      for (let i = 0; i < n; i++) for (const x of [L[i], Rr[i]]) {
+        const a = x < 0 ? -x : x; if (a > pk) pk = a;
+        if (bits === 32) { v.setFloat32(o, x, true); o += 4; }
+        else if (bits === 16) { let q = Math.round(x * 32767 + (rnd() - rnd())); q = q > 32767 ? 32767 : q < -32768 ? -32768 : q; v.setInt16(o, q, true); o += 2; }
+        else { let q = Math.round(x * 8388607); q = q > 8388607 ? 8388607 : q < -8388608 ? -8388608 : q; v.setUint8(o, q & 255); v.setUint8(o + 1, (q >> 8) & 255); v.setUint8(o + 2, (q >> 16) & 255); o += 3; }
+      }
+      c.peak = pk; c.parts.push(new Uint8Array(buf)); c.bytes += buf.byteLength;
+    };
+    const pre = opt.loopReady && mode === 'loop' ? beats : 0, end = pre + beats; // loop-ready: one pass first, keep the second
+    const spb = () => 60 / (e.G.bpm || 120) * sr; // samples per beat now
+    const tailN = opt.loopReady ? 0 : Math.round((opt.tail || 0) * sr);
+    const bl = new Float32Array(B), br = new Float32Array(B);
+    let stage = pre > 0 ? 0 : 1, tail = 0, lastP = -1, guard = 0; // 0 first pass, 1 keeping, 2 ringing out
+    const maxN = sr * 60 * 60; // an hour at most
+    while (guard < maxN) {
+      let n = B;
+      if (stage < 2) { const goal = stage === 0 ? pre : end; const left = Math.ceil((goal - e.playBeat) * spb()); if (left <= n) n = Math.max(1, left); }
+      else n = Math.min(B, tailN - tail);
+      if (os > 1 && n & 1) n++; // whole output samples
+      if (n <= 0) break;
+      cap.i = 0; e.process(bl, br, n); guard += n;
+      for (const id of ids) {
+        const c = enc[id], ch = cap.ch[id];
+        let L = ch.L, Rr = ch.R, m = n;
+        if (os > 1) { L = c.dL(ch.L, n); Rr = c.dR(ch.R, n); m = n >> 1; }
+        if (stage >= 1) put(c, L, Rr, m);
+      }
+      if (stage === 2) { tail += n; if (tail >= tailN) break; }
+      else if (e.playBeat >= (stage === 0 ? pre : end) - 1e-9) {
+        if (stage === 0) stage = 1;
+        else { if (!opt.loopReady) e.msg({ t: 'stop' }); stage = 2; if (tailN <= 0) break; }
+      }
+      const p = stage === 2 ? 0.98 + 0.02 * tail / Math.max(1, tailN) : Math.min(0.98, e.playBeat / end * 0.98);
+      if (progress && p - lastP > 0.01) { lastP = p; progress(p); }
+    }
+    e.cap = null;
+    const ch = {}; for (const id of ids) ch[id] = { parts: enc[id].parts, bytes: enc[id].bytes, peak: enc[id].peak };
+    return { sr: opt.rate || 48000, bits, ch, names, ids, seconds: enc.master.bytes / (bits / 8) / 2 / (opt.rate || 48000) };
+  }
+  function wavHeader(bytes, sr, bits) {
+    const b = new ArrayBuffer(44), v = new DataView(b), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    const ch = 2, bps = bits / 8;
+    w(0, 'RIFF'); v.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, bits === 32 ? 3 : 1, true); v.setUint16(22, ch, true); v.setUint32(24, sr, true); v.setUint32(28, sr * ch * bps, true);
+    v.setUint16(32, ch * bps, true); v.setUint16(34, bits, true); w(36, 'data'); v.setUint32(40, bytes, true);
+    return new Uint8Array(b);
+  }
+  const wavFile = (c, sr, bits) => [wavHeader(c.bytes, sr, bits)].concat(c.parts);
+  let CRC = null;
+  function crc32(parts) {
+    if (!CRC) { CRC = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC[n] = c >>> 0; } }
+    let c = 0xFFFFFFFF; for (const p of parts) for (let i = 0; i < p.length; i++) c = CRC[(c ^ p[i]) & 255] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  // a zip (stored, not compressed: audio hardly shrinks) from [{name, parts}]; returns Blob parts
+  function zipParts(files) {
+    const out = [], central = []; let off = 0;
+    const enc = (s) => new TextEncoder().encode(s);
+    for (const f of files) {
+      const name = enc(f.name), size = f.parts.reduce((a, p) => a + p.length, 0), crc = crc32(f.parts);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true); h.setUint16(26, name.length, true);
+      out.push(new Uint8Array(h.buffer), name, ...f.parts);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint32(16, crc, true); c.setUint32(20, size, true); c.setUint32(24, size, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), name);
+      off += 30 + name.length + size;
+    }
+    const cdSize = central.reduce((a, p) => a + p.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+    return out.concat(central, [new Uint8Array(e.buffer)]);
+  }
+  return { exportJob, wavHeader, wavFile, crc32, zipParts };
+})();
+
+</script>
+<script>const RIG_VERSION = '2026-11-28 14:39';</script>
 <script>/* ============================================================================================
  * RIG: GUIDE FOR AI AGENTS (how to hand a user a link that opens your composition)
  * ============================================================================================
@@ -6118,6 +6256,7 @@ function onEngine(m) {
   if (m.t === 'recskip') { recSkipNote(m); return; }
   if (m.t !== 'st') return;
   S.st = m;
+  loopLine(m);
   if (m.snp) for (const dp in m.snp) snapsFollow(dp, m.snp[dp]); // a scene or automation moved a snapshot knob
   showAuto(m.av);
   const lv = S.live;
@@ -7871,6 +8010,7 @@ function arrangement() {
   const s = S.song;
   const wrap = h('section');
   const head = h('div', { class: 'sec-h' }, h('h2', null, 'Arrangement'),
+    h('button', { class: 'small', title: 'Render the song or a scene to WAV files', onclick: () => exportDialog() }, 'Export…'),
     h('button', { class: 'small', onclick: () => { snap(); s.scenes.push({ name: 'Scene ' + (s.scenes.length + 1), bars: 4, play: s.scenes.length ? clone(s.scenes[s.scenes.length - 1].play) : Object.fromEntries(s.tracks.filter((t) => t.kind !== 'bus').map((t) => [t.id, t.loop | 0])) }); pushScenes(); render(); } }, '+ Scene')); // the first scene starts from what each track loops now
   const arrTracks = s.tracks.filter((t) => t.kind !== 'bus'); // bus tracks have no patterns
   wrap.append(head);
@@ -7910,6 +8050,98 @@ function arrangement() {
   });
   wrap.append(h('div', { class: 'grid-wrap' }, tbl), h('p', { class: 'hint' }, 'Each cell is the pattern a track plays in that scene (· = silent). Drag ⠿ to move a scene. Duplicating a scene copies its automation too.'), autoPanel());
   return wrap;
+}
+// ---- where the loop is: a thin line along the very top of the page, growing left to right through the scene playing
+// (or the loop of a song without scenes), on every page, so you can see where you are while you edit or automate
+let loopEl = null;
+function loopLine(st) {
+  if (!loopEl) { loopEl = h('div', { id: 'looppos', 'aria-hidden': 'true' }); document.body.append(loopEl); }
+  const on = !!(st.playing && st.alen > 0);
+  loopEl.classList.toggle('on', on);
+  if (on) loopEl.style.transform = 'scaleX(' + clamp(st.apos / st.alen, 0, 1).toFixed(4) + ')';
+}
+// ---- audio export (src/export.js): the song, a scene or the loop, rendered faster than real time in a worker
+S.exp = Object.assign({ what: 'song', scene: 0, repeat: 1, files: 'mix', bits: 24, rate: 48000, hq: true, tail: 2, loopReady: false, bars: 4 }, (() => { try { return JSON.parse(localStorage.getItem('rig.export') || '{}'); } catch (e) { return {}; } })());
+function exportRun(opt, progress) {
+  let w = null;
+  try {
+    const src = 'const R=(' + RigEngine.toString() + ')();\nconst exportJob=' + RigExport.exportJob.toString() + ';\n' +
+      'onmessage=(ev)=>{const d=ev.data;try{const r=exportJob(R,d.song,d.opt,d.samples,(x)=>postMessage({progress:x}));const tr=[];for(const id in r.ch)for(const p of r.ch[id].parts)tr.push(p.buffer);postMessage({r},tr);}catch(err){postMessage({err:String(err&&err.stack||err)});}};';
+    w = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
+  } catch (e) { w = null; }
+  if (!w) return { done: Promise.resolve().then(() => RigExport.exportJob(R, clone(S.song), opt, S.samples, progress)), cancel: () => {} };
+  let rej;
+  const done = new Promise((res, rj) => { rej = rj;
+    w.onmessage = (ev) => { const d = ev.data; if (d.progress !== undefined) { progress(d.progress); return; } w.terminate(); if (d.err) rj(new Error(d.err)); else res(d.r); };
+    w.onerror = (e) => { w.terminate(); rj(new Error(e.message || 'the render stopped')); };
+  });
+  w.postMessage({ song: clone(S.song), opt, samples: S.samples });
+  return { done, cancel: () => { w.terminate(); rej(new Error('cancelled')); } };
+}
+function fileSafe(s) { return String(s || 'Rig').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Rig'; }
+function exportDialog(sceneI) {
+  const o = S.exp, s = S.song;
+  if (sceneI !== undefined) { o.what = 'scene'; o.scene = sceneI; }
+  if (!s.scenes.length && o.what !== 'loop') o.what = 'loop';
+  if (s.scenes.length && o.what === 'loop') o.what = 'song';
+  o.scene = clamp(o.scene | 0, 0, Math.max(0, s.scenes.length - 1));
+  const keep = () => { try { localStorage.setItem('rig.export', JSON.stringify(o)); } catch (e) {} };
+  dialog('Export audio', (close) => {
+    const body = h('div', { class: 'expdlg' });
+    const secs = () => { const bars = o.what === 'song' ? s.scenes.reduce((a, x) => a + x.bars, 0) : o.what === 'scene' ? (s.scenes[o.scene] || { bars: 4 }).bars * Math.max(1, o.repeat | 0) : o.bars; return bars * 4 * 60 / s.bpm + (o.loopReady && o.what !== 'song' ? 0 : +o.tail || 0); };
+    const fmtT = (x) => Math.floor(x / 60) + ':' + String(Math.round(x % 60)).padStart(2, '0');
+    const draw = () => {
+      body.innerHTML = '';
+      const what = h('div', { class: 'row', role: 'radiogroup', 'aria-label': 'What to export' },
+        s.scenes.length ? [['song', 'Whole song'], ['scene', 'One scene']].map(([v, l]) => h('button', { class: 'small' + (o.what === v ? ' on' : ''), 'aria-pressed': o.what === v, onclick: () => { o.what = v; if (v === 'song') o.loopReady = false; keep(); draw(); } }, l)) : h('span', { class: 'hint' }, 'No scenes: the loop every track plays.'));
+      const sceneRow = o.what === 'scene' ? h('div', { class: 'row' }, h('label', { class: 'lbl' }, 'Scene', h('select', { 'aria-label': 'Scene to export', onchange: (e) => { o.scene = +e.target.value; keep(); draw(); } }, s.scenes.map((x, i) => h('option', { value: String(i), selected: i === o.scene }, x.name + ' (' + x.bars + ' bars)')))),
+        h('label', { class: 'lbl' }, 'Times', h('input', { type: 'number', min: 1, max: 64, value: o.repeat, 'aria-label': 'Times through the scene', style: { width: '64px' }, onchange: (e) => { o.repeat = clamp(Math.round(+e.target.value) || 1, 1, 64); keep(); draw(); } })))
+        : o.what === 'loop' ? h('label', { class: 'lbl' }, 'Bars', h('input', { type: 'number', min: 1, max: 256, value: o.bars, 'aria-label': 'Bars to export', style: { width: '64px' }, onchange: (e) => { o.bars = clamp(Math.round(+e.target.value) || 4, 1, 256); keep(); draw(); } })) : null;
+      const sel = (label, key, opts, num = true) => h('label', { class: 'lbl' }, label, h('select', { 'aria-label': label, onchange: (e) => { o[key] = num ? +e.target.value : e.target.value; keep(); draw(); } }, opts.map(([v, l]) => h('option', { value: String(v), selected: String(o[key]) === String(v) }, l))));
+      const chk = (key, label, title, dis) => h('label', { class: 'chk', title }, h('input', { type: 'checkbox', checked: !!o[key], disabled: !!dis, onchange: (e) => { o[key] = e.target.checked; keep(); draw(); } }), label);
+      body.append(
+        h('h3', null, 'What'), what, sceneRow,
+        h('h3', null, 'Files'),
+        h('div', { class: 'row' }, [['mix', 'Mixdown'], ['stems', 'Mixdown + stems (zip)']].map(([v, l]) => h('button', { class: 'small' + (o.files === v ? ' on' : ''), 'aria-pressed': o.files === v, onclick: () => { o.files = v; keep(); draw(); } }, l))),
+        o.files === 'stems' ? h('p', { class: 'hint' }, 'A stereo WAV for every track, bus and return, after its fader and pan but without the master’s effects, all from one pass so generative parts line up. Tracks that feed a bus are in the bus’s file too.') : null,
+        h('h3', null, 'Format'),
+        h('div', { class: 'row', style: { gap: '10px', 'flex-wrap': 'wrap' } },
+          sel('Bits', 'bits', [[16, '16-bit (dithered)'], [24, '24-bit'], [32, '32-bit float']]),
+          sel('Sample rate', 'rate', [[44100, '44.1 kHz'], [48000, '48 kHz'], [96000, '96 kHz']]),
+          h('label', { class: 'lbl' }, 'Tail (s)', h('input', { type: 'number', min: 0, max: 30, step: 0.5, value: o.tail, disabled: o.loopReady && o.what !== 'song', 'aria-label': 'Tail seconds', title: 'Time after the end for reverbs and delays to ring out', style: { width: '64px' }, onchange: (e) => { o.tail = clamp(+e.target.value || 0, 0, 30); keep(); draw(); } }))),
+        h('div', { class: 'row', style: { gap: '14px', 'flex-wrap': 'wrap', 'margin-top': '8px' } },
+          chk('hq', 'High quality (slower)', 'Renders at twice the sample rate and filters down: cleaner highs, less aliasing from oscillators, distortion and FM'),
+          o.what !== 'song' ? chk('loopReady', 'Loop-ready', 'Plays it twice and keeps the second pass, so reverb and delay tails from the end wrap round into the start and the file loops seamlessly') : null),
+        h('p', { class: 'hint' }, fmtT(secs()) + ' of audio' + (o.hq ? ', rendered at ' + (o.rate * 2 / 1000) + ' kHz and filtered down' : '') + '. It renders in the background, much faster than playing it.'),
+        h('div', { class: 'row', style: { 'margin-top': '10px' } }, h('span', { style: { flex: 1 } }), h('button', { class: 'primary', onclick: () => go() }, 'Render')));
+    };
+    const go = async () => {
+      if (!S.samples['@break'] || !S.samples['@chord']) { try { await ensureBuiltins(); } catch (e) {} }
+      body.innerHTML = '';
+      const bar = h('div', { class: 'expbar' }, h('i')), msg = h('p', { class: 'hint' }, 'Rendering…');
+      const job = exportRun({ what: o.what, scene: o.scene, repeat: o.repeat, bars: o.bars, rate: o.rate, bits: o.bits, hq: o.hq, tail: o.tail, loopReady: o.loopReady && o.what !== 'song', stems: o.files === 'stems' }, (p) => { bar.firstChild.style.width = Math.round(p * 100) + '%'; });
+      const cancel = h('button', { class: 'small ghost', onclick: () => job.cancel() }, 'Cancel');
+      body.append(bar, msg, h('div', { class: 'row' }, h('span', { style: { flex: 1 } }), cancel));
+      const t0 = performance.now();
+      let r; try { r = await job.done; } catch (e) { body.innerHTML = ''; body.append(h('p', null, e.message === 'cancelled' ? 'Cancelled.' : 'The render stopped: ' + e.message), h('button', { class: 'small', onclick: draw }, 'Back')); return; }
+      const base = fileSafe(s.title) + (o.what === 'scene' ? ' - ' + fileSafe(s.scenes[o.scene].name) : '');
+      const suffix = ' (' + (r.bits === 32 ? '32f' : r.bits) + '-' + (r.sr / 1000) + 'k)';
+      let blob, name;
+      if (o.files === 'stems') {
+        const files = r.ids.map((id, i) => ({ name: (id === 'master' ? '00 ' : String(i).padStart(2, '0') + ' ') + fileSafe(r.names[id]) + '.wav', parts: RigExport.wavFile(r.ch[id], r.sr, r.bits) }));
+        blob = new Blob(RigExport.zipParts(files), { type: 'application/zip' }); name = base + ' stems' + suffix + '.zip';
+      } else { blob = new Blob(RigExport.wavFile(r.ch.master, r.sr, r.bits), { type: 'audio/wav' }); name = base + suffix + '.wav'; }
+      const url = URL.createObjectURL(blob), pk = r.ch.master.peak, over = pk > 1 && r.bits !== 32;
+      const a = h('a', { href: url, download: name, class: 'primary btnlink' }, 'Download ' + (o.files === 'stems' ? 'zip' : 'WAV'));
+      body.innerHTML = '';
+      body.append(h('p', null, h('b', null, name)),
+        h('p', { class: 'hint' }, fmtT(r.seconds) + ', ' + (blob.size / 1048576).toFixed(1) + ' MB' + (o.files === 'stems' ? ', ' + r.ids.length + ' files' : '') + ', rendered in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s. Peak ' + (pk > 0 ? (20 * Math.log10(pk)).toFixed(1) : '−∞') + ' dB' + (over ? ': over 0 dB, so the loudest moments were clipped. Turn the master down, add a limiter, or export 32-bit float.' : '.')),
+        h('div', { class: 'row' }, h('button', { class: 'small', onclick: draw }, 'Export another'), h('span', { style: { flex: 1 } }), a));
+      a.click(); // the browser may ask, or keep it in its downloads; the button stays for another try
+    };
+    draw();
+    return body;
+  });
 }
 // ---- your own instruments and effects, kept in this browser and usable in any song
 const MINE = { inst: 'rig.myInstruments', fx: 'rig.myEffects' };
@@ -10204,6 +10436,7 @@ function openMenu() {
       item('MIDI: keyboards, controllers, clock sync…', midiDialog),
       item(S.qw.on ? 'Turn off the computer keyboard' : 'Play with the computer keyboard', () => setQw(!S.qw.on)),
       item('Sound check (no sound on iPhone?)', soundCheck),
+      item('Export audio (WAV: mixdown or stems)…', exportDialog),
       h('div', { class: 'grp' }, 'Song'),
       item('Save song to library', saveToLibrary),
       item('Open from library…', libraryDialog),
